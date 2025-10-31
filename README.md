@@ -2,11 +2,11 @@
 
 ## Description
 
-Brief description of what this project does and who it's for. Explain the main purpose and key features in 2-3 sentences.
+Fun analysis on my brain. Feel free to check it out!
 
 ## Dataset
 
-This project includes MRI scan data from subject Karas_262199, containing multiple sequences acquired during a single scanning session:
+This project includes MRI scan data from subject cinnamon-cicada, containing multiple sequences acquired during a single scanning session:
 
 ### Data Files
 
@@ -14,11 +14,11 @@ The `Data/` directory contains the following MRI sequences:
 
 | Sequence | Description | Files |
 |----------|-------------|-------|
-| **Survey** | Initial survey/localizer scan | `Karas_262199.01.01.08-11-13.WIP_SURVEY.01.nii/.json` |
-| **T1-weighted 3D** | High-resolution structural scan (cs_2.8_T1W_3D_TFE) | `Karas_262199.02.01.08-12-58.WIP_cs_2.8_T1W_3D_TFE.01.nii/.json` |
-| **fMRI Task v0 (Run 1)** | Functional MRI with TR=1000ms | `Karas_262199.03.01.08-18-02.WIP_fMRI_task_v0_TR1000.01.nii/.json` |
-| **fMRI Task v0 (Run 2)** | Functional MRI with TR=1000ms | `Karas_262199.05.01.08-40-45.WIP_fMRI_task_v0_TR1000.01.nii/.json` |
-| **fMRI Task v0 (Run 3)** | Functional MRI with TR=1000ms | `Karas_262199.06.01.08-50-26.WIP_fMRI_task_v0_TR1000.01.nii/.json` |
+| **Survey** | Initial survey/localizer scan | `cinnamon-cicada.01.01.08-11-13.WIP_SURVEY.01.nii/.json` |
+| **T1-weighted 3D** | High-resolution structural scan (cs_2.8_T1W_3D_TFE) | `cinnamon-cicada.02.01.08-12-58.WIP_cs_2.8_T1W_3D_TFE.01.nii/.json` |
+| **fMRI Task v0 (Run 1)** | Functional MRI with TR=1000ms | `cinnamon-cicada.03.01.08-18-02.WIP_fMRI_task_v0_TR1000.01.nii/.json` |
+| **fMRI Task v0 (Run 2)** | Functional MRI with TR=1000ms | `cinnamon-cicada.05.01.08-40-45.WIP_fMRI_task_v0_TR1000.01.nii/.json` |
+| **fMRI Task v0 (Run 3)** | Functional MRI with TR=1000ms | `cinnamon-cicada.06.01.08-50-26.WIP_fMRI_task_v0_TR1000.01.nii/.json` |
 
 ### File Formats
 
@@ -27,7 +27,7 @@ The `Data/` directory contains the following MRI sequences:
 
 ### Data Specifications
 
-- **Subject ID**: Karas_262199
+- **Subject ID**: cinnamon-cicada
 - **Scanner**: Philips (inferred from file naming convention)
 - **Functional runs**: 3 task-based fMRI sessions
 - **Repetition Time (TR)**: 1000ms for fMRI sequences
@@ -121,10 +121,9 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## Acknowledgments
 
-- Hat tip to anyone whose code was used
-- Inspiration sources
-- Medical imaging community
-- Open source neuroimaging tools
+- Shoutout to ZK, who provided me with my data
+- ADHD200 Dataset ()
+- OpenNeuro Dataset ()
 
 ## Changelog
 
@@ -150,7 +149,3 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - [ ] Support for real-time processing
 - [ ] Integration with medical databases
 - [ ] Machine learning-based analysis features
-
----
-
-**Note:** This README is a template. Please customize the content according to your specific project requirements and remove any sections that don't apply to your project.
