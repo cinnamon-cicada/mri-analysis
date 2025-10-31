@@ -306,13 +306,6 @@ def preprocess_adhd200(
     # Track processed subjects
     processed_subjects = []
     
-    # Expected ADHD-200 sites
-    adhd_sites = [
-        'KKI', 'NeuroIMAGE', 'NYU', 'OHSU', 
-        'Peking_1', 'Peking_2', 'Peking_3', 
-        'Pittsburgh', 'WashU'
-    ]
-    
     # Process each site
     for site_dir in input_dir.iterdir():
         if not site_dir.is_dir():

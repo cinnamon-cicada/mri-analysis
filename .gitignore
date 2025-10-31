@@ -1,3 +1,8 @@
 lab_data/*
 outside_data/*
 processed_data/*
+env/*
+__pycache__/*
+
+ADHD200_download_links.sh
+.env

@@ -61,8 +61,6 @@ The `Data/` directory contains the following MRI sequences:
 
 ### Prerequisites
 
-List any software, libraries, or dependencies that need to be installed first:
-
 ```bash
 # Example prerequisites
 python >= 3.8

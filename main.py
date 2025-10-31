@@ -16,7 +16,7 @@ def main(choice=[]):
                 # Process ADHD-200 dataset
                 result = preprocess_adhd200(
                     input_dir="./outside_data/adhd200",
-                    output_dir="./processed/adhd200",
+                    output_dir="./processed_data/adhd200",
                     phenotypic_file="./outside_data/adhd200_phenotypics.csv",
                     pipeline="athena",
                     create_bids=True

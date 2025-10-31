@@ -123,26 +123,32 @@ download_adhd200() {
         2>/dev/null || print_warning "Could not download phenotypic file"
     
     if [ "$TEST_MODE" = true ]; then
-        print_info "TEST MODE: Downloading 3 sample subjects from NYU site..."
+        print_info "TEST MODE: Downloading 5 sample subjects from Peking University site..."
         
-        # Download a few subjects from NYU site (preprocessed with Athena pipeline)
-        local test_subjects=("0010042" "0010064" "0010128" "0010075" "0010088")
+        # Download 5 subjects from Peking University site (preprocessed with Athena pipeline)
+        local test_subjects=("0010001" "0010002" "0010003" "0010004" "0010005")
         
         for subject in "${test_subjects[@]}"; do
             print_info "Downloading subject $subject..."
             
-            local subject_dir="$ADHD_DIR/NYU/$subject"
+            local subject_dir="$ADHD_DIR/Peking_1/$subject"
             mkdir -p "$subject_dir/func"
             mkdir -p "$subject_dir/anat"
             
-            # Download functional (resting-state) data
-            local func_url="https://fcon_1000.projects.nitrc.org/indi/adhd200/ADHD200_40sub_preprocessed/data/NYU/${subject}/func/rest_reorient.nii.gz"
-            curl -f -o "$subject_dir/func/rest_reorient.nii.gz" "$func_url" 2>/dev/null || \
+            # Download functional (resting-state) data from AWS S3
+            print_info "  Downloading functional scan..."
+            aws s3 cp \
+                "s3://fcp-indi/data/Projects/ADHD200/RawDataBIDS/Peking_1/sub-${subject}/func/sub-${subject}_task-rest_bold.nii.gz" \
+                "$subject_dir/func/rest_bold.nii.gz" \
+                --no-sign-request 2>/dev/null || \
                 print_warning "Could not download functional data for $subject"
             
-            # Download anatomical data
-            local anat_url="https://fcon_1000.projects.nitrc.org/indi/adhd200/ADHD200_40sub_preprocessed/data/NYU/${subject}/anat/mprage_skullstripped.nii.gz"
-            curl -f -o "$subject_dir/anat/mprage_skullstripped.nii.gz" "$anat_url" 2>/dev/null || \
+            # Download anatomical data from AWS S3
+            print_info "  Downloading anatomical scan..."
+            aws s3 cp \
+                "s3://fcp-indi/data/Projects/ADHD200/RawDataBIDS/Peking_1/sub-${subject}/anat/sub-${subject}_T1w.nii.gz" \
+                "$subject_dir/anat/T1w.nii.gz" \
+                --no-sign-request 2>/dev/null || \
                 print_warning "Could not download anatomical data for $subject"
         done
         
@@ -153,21 +159,16 @@ download_adhd200() {
         print_warning "This will download ~100GB of data and may take several hours"
         
         # Use AWS S3 for faster download of full dataset
-        print_info "Using AWS S3 public bucket..."
+        print_info "Using AWS S3 public bucket for Peking University site..."
         
-        # Configure AWS CLI for anonymous access
-        aws configure set aws_access_key_id "none" --profile adhd200
-        aws configure set aws_secret_access_key "none" --profile adhd200
-        aws configure set region "us-east-1" --profile adhd200
-        
-        # Download from S3 bucket (Athena preprocessed pipeline)
+        # Download Peking_1 site from S3 bucket (BIDS format)
         aws s3 sync \
-            s3://fcp-indi/data/Projects/ADHD200/Outputs/athena/pipeline \
-            "$ADHD_DIR/athena" \
+            s3://fcp-indi/data/Projects/ADHD200/RawDataBIDS/Peking_1 \
+            "$ADHD_DIR/Peking_1" \
             --no-sign-request \
             --exclude "*" \
-            --include "*/func/rest_reorient.nii.gz" \
-            --include "*/anat/mprage_skullstripped.nii.gz"
+            --include "*/func/*_task-rest_bold.nii.gz" \
+            --include "*/anat/*_T1w.nii.gz"
         
         print_success "ADHD-200 full dataset downloaded to $ADHD_DIR"
     fi
