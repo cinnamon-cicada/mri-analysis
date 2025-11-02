@@ -111,60 +111,100 @@ check_dependencies() {
 
 # Function to download ADHD-200 dataset
 download_adhd200() {
-    print_info "Downloading ADHD-200 dataset..."
+    print_info "Getting ADHD-200 dataset..."
     
     local ADHD_DIR="$BASE_DIR/adhd200"
     mkdir -p "$ADHD_DIR"
+
+    # Check if WashU participants CSV exists
+    if [ ! -f "$BASE_DIR/../outside_data/WashU_Participants.csv" ]; then
+        print_error "WashU_Participants.csv not found at $BASE_DIR/../outside_data/WashU_Participants.csv"
+        print_info "Please ensure the CSV file is available before running this script."
+        return 1
+    fi
+
+    # Get metadata files
+    META_DIR="$ADHD_DIR/meta"
+
+    # Check if directory exists
+    if [ ! -d "$META_DIR" ]; then
+        echo "Directory '$META_DIR' not found. Creating and downloading..."
+        mkdir -p "$META_DIR"
+
+    aws s3 cp s3://fcp-indi/data/Projects/ADHD200/RawDataBIDS/WashU/T1w.json "$META_DIR"/ --no-sign-request
+    aws s3 cp s3://fcp-indi/data/Projects/ADHD200/RawDataBIDS/WashU/dataset_description.json "$META_DIR"/ --no-sign-request
+    aws s3 cp s3://fcp-indi/data/Projects/ADHD200/RawDataBIDS/WashU/participants.tsv "$META_DIR"/ --no-sign-request
+    else
+    echo "Directory '$META_DIR' already exists. Skipping download."
+    fi
     
     # Download phenotypic data (always needed)
     print_info "Downloading phenotypic data..."
     curl -o "$ADHD_DIR/adhd200_phenotypics.csv" \
         "https://fcon_1000.projects.nitrc.org/indi/adhd200/ADHD200_40sub_preprocessed/phenotypic/ADHD200_40sub_preprocessed_phenotypics.csv" \
         2>/dev/null || print_warning "Could not download phenotypic file"
-    
+
     if [ "$TEST_MODE" = true ]; then
-        print_info "TEST MODE: Downloading 5 sample subjects from Peking University site..."
+        print_info "TEST MODE: Downloading 5 sample subjects from WashU..."
         
-        # Download 5 subjects from Peking University site (preprocessed with Athena pipeline)
-        local test_subjects=("0010001" "0010002" "0010003" "0010004" "0010005")
+        # Download 5 subjects from WashU (preprocessed with Athena pipeline)
+        local test_subjects=("15057" "15052" "15007" "15005" "15006")
         
         for subject in "${test_subjects[@]}"; do
             print_info "Downloading subject $subject..."
             
-            local subject_dir="$ADHD_DIR/Peking_1/$subject"
+            local subject_dir="$ADHD_DIR/$subject"
+
+            # Check if subject directory already exists
+            if [ -d "$subject_dir" ]; then
+                print_warning "Subject $subject already exists. Skipping download."
+                continue
+            fi
+
+            # Else, proceed with download
             mkdir -p "$subject_dir/func"
             mkdir -p "$subject_dir/anat"
             
-            # Download functional (resting-state) data from AWS S3
-            print_info "  Downloading functional scan..."
-            aws s3 cp \
-                "s3://fcp-indi/data/Projects/ADHD200/RawDataBIDS/Peking_1/sub-${subject}/func/sub-${subject}_task-rest_bold.nii.gz" \
-                "$subject_dir/func/rest_bold.nii.gz" \
-                --no-sign-request 2>/dev/null || \
-                print_warning "Could not download functional data for $subject"
+            # Get functional and anatomical files for this subject from CSV
+            local func_files=($(grep "/sub-0*${subject}/" "$BASE_DIR/../outside_data/WashU_Participants.csv" | grep "/func/"))
+            local anat_files=($(grep "/sub-0*${subject}/" "$BASE_DIR/../outside_data/WashU_Participants.csv" | grep "/anat/"))
             
-            # Download anatomical data from AWS S3
-            print_info "  Downloading anatomical scan..."
-            aws s3 cp \
-                "s3://fcp-indi/data/Projects/ADHD200/RawDataBIDS/Peking_1/sub-${subject}/anat/sub-${subject}_T1w.nii.gz" \
-                "$subject_dir/anat/T1w.nii.gz" \
-                --no-sign-request 2>/dev/null || \
-                print_warning "Could not download anatomical data for $subject"
+            # Download functional data
+            print_info "  Downloading ${#func_files[@]} functional scans..."
+            for func_file in "${func_files[@]}"; do
+                local filename=$(basename "$func_file")
+                aws s3 cp \
+                    "$func_file" \
+                    "$subject_dir/func/$filename" \
+                    --no-sign-request 2>/dev/null || \
+                    print_warning "Could not download functional file: $filename"
+            done
+            
+            # Download anatomical data
+            print_info "  Downloading ${#anat_files[@]} anatomical scans..."
+            for anat_file in "${anat_files[@]}"; do
+                local filename=$(basename "$anat_file")
+                aws s3 cp \
+                    "$anat_file" \
+                    "$subject_dir/anat/$filename" \
+                    --no-sign-request 2>/dev/null || \
+                    print_warning "Could not download anatomical file: $filename"
+            done
         done
         
         print_success "ADHD-200 test dataset downloaded to $ADHD_DIR"
         
-    else
+    elif [ -z "$(ls -A "$ADHD_DIR" 2>/dev/null)" ]; then
         print_info "FULL MODE: Downloading complete ADHD-200 dataset..."
         print_warning "This will download ~100GB of data and may take several hours"
         
         # Use AWS S3 for faster download of full dataset
         print_info "Using AWS S3 public bucket for Peking University site..."
         
-        # Download Peking_1 site from S3 bucket (BIDS format)
+        # Download WashU site from S3 bucket (BIDS format)
         aws s3 sync \
-            s3://fcp-indi/data/Projects/ADHD200/RawDataBIDS/Peking_1 \
-            "$ADHD_DIR/Peking_1" \
+            s3://fcp-indi/data/Projects/ADHD200/RawDataBIDS/WashU \
+            "$ADHD_DIR" \
             --no-sign-request \
             --exclude "*" \
             --include "*/func/*_task-rest_bold.nii.gz" \

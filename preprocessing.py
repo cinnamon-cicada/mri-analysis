@@ -253,14 +253,6 @@ def _create_events_template(output_dir, events_path):
 # ADHD-200 Pre-Processing
 # ----------------------------------------------------------------------
 
-import os
-import json
-import shutil
-import pandas as pd
-import nibabel as nib
-import numpy as np
-from pathlib import Path
-
 def preprocess_adhd200(
     input_dir,
     output_dir,
@@ -279,7 +271,7 @@ def preprocess_adhd200(
     -----------
     input_dir : str or Path
         Directory containing ADHD-200 downloaded data
-        Expected structure: input_dir/site_name/subject_id/
+        Expected structure: input_dir/subject_id/
     output_dir : str or Path
         Output directory for standardized dataset
     phenotypic_file : str or Path, optional
@@ -310,34 +302,31 @@ def preprocess_adhd200(
     for site_dir in input_dir.iterdir():
         if not site_dir.is_dir():
             continue
+
+    # Process each subject in the site
+    for subject_dir in site_dir.iterdir():
+        if not subject_dir.is_dir():
+            continue
         
-        site_name = site_dir.name
-        print(f"\nProcessing site: {site_name}")
+        subject_id = subject_dir.name
         
-        # Process each subject in the site
-        for subject_dir in site_dir.iterdir():
-            if not subject_dir.is_dir():
-                continue
+        try:
+            subject_info = _process_adhd_subject(
+                subject_dir=subject_dir,
+                output_dir=output_dir,
+                subject_id=subject_id,
+                site_name="WashU",  # Test site name; adapt as needed
+                phenotypic_data=phenotypic_data,
+                pipeline=pipeline,
+                create_bids=create_bids
+            )
             
-            subject_id = subject_dir.name
+            processed_subjects.append(subject_info)
+            print(f"  ✓ Processed {subject_id}")
             
-            try:
-                subject_info = _process_adhd_subject(
-                    subject_dir=subject_dir,
-                    output_dir=output_dir,
-                    subject_id=subject_id,
-                    site_name=site_name,
-                    phenotypic_data=phenotypic_data,
-                    pipeline=pipeline,
-                    create_bids=create_bids
-                )
-                
-                processed_subjects.append(subject_info)
-                print(f"  ✓ Processed {subject_id}")
-                
-            except Exception as e:
-                print(f"  ✗ Error processing {subject_id}: {str(e)}")
-                continue
+        except Exception as e:
+            print(f"  ✗ Error processing {subject_id}: {str(e)}")
+            continue
     
     # Create summary files
     summary_df = pd.DataFrame(processed_subjects)

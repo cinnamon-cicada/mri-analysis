@@ -14,13 +14,18 @@ def main(choice=[]):
                 # ADHD Analysis
                 print("Performing Analysis 1...")
                 # Process ADHD-200 dataset
-                result = preprocess_adhd200(
-                    input_dir="./outside_data/adhd200",
-                    output_dir="./processed_data/adhd200",
-                    phenotypic_file="./outside_data/adhd200_phenotypics.csv",
-                    pipeline="athena",
-                    create_bids=True
-                )
+                if not os.path.exists("./processed_data/adhd200"):
+                    os.makedirs("./processed_data/adhd200")
+                    result = preprocess_adhd200(
+                        input_dir="./outside_data/adhd200",
+                        output_dir="./processed_data/adhd200",
+                        phenotypic_file="./outside_data/adhd200_phenotypics.csv",
+                        pipeline="athena",
+                        create_bids=True
+                    )
+                else:
+                    print("Processed data directory already exists. Skipping preprocessing.")
+                    result = {"status": "skipped", "reason": "processed_data/adhd200 already exists"}
                 
                 print("\nProcessing summary:")
                 print(json.dumps(result, indent=2))

@@ -37,6 +37,10 @@ The `Data/` directory contains the following MRI sequences:
 - ADHD-200: http://fcon_1000.projects.nitrc.org/indi/adhd200/
 - OpenNeuro
 
+### Pre-Processed Datasets
+- The ADHD200/WashU preprocessed dataset was downloaded at this link (9GB): https://www.nitrc.org/frs/downloadlink.php/3270
+- For a custom preprocessing pieline, the run.sh script can be run.
+
 ## Table of Contents
 
 - [Dataset](#dataset)
@@ -141,9 +145,5 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## Roadmap
 
-- [ ] Add DICOM support
-- [ ] Implement advanced filtering algorithms
-- [ ] Add GUI interface
-- [ ] Support for real-time processing
-- [ ] Integration with medical databases
-- [ ] Machine learning-based analysis features
+- [ ] Review and customize WashU data preprocessing
+- [ ] Outline ADHD analysis workflow
