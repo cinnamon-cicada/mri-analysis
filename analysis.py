@@ -1,11 +1,12 @@
-
-
+from typing import Dict, List, Optional
+import os
+import numpy as np
 
 # ----------------------------------
 # ADHD Analysis Script
 # ----------------------------------
 
-def run_adhd_analysis(subject_dirs: list, analysis: str = 'adhd') -> Dict:
+def run_adhd_analysis(subject_dirs: list) -> Dict:
     """
     Aggregate volume and thickness measurements across multiple subjects.
     
@@ -13,8 +14,6 @@ def run_adhd_analysis(subject_dirs: list, analysis: str = 'adhd') -> Dict:
     ----------
     subject_dirs : list
         List of paths to FreeSurfer subject directories
-    analysis : str
-        Type of analysis ('adhd' supported)
         
     Returns
     -------
@@ -27,8 +26,8 @@ def run_adhd_analysis(subject_dirs: list, analysis: str = 'adhd') -> Dict:
         all_etiv = []
         
         for subject_dir in subject_dirs:
-            volumes = get_volume(subject_dir, analysis)
-            thickness = get_thickness(subject_dir, analysis)
+            volumes = get_volume(subject_dir, analysis='adhd')
+            thickness = get_thickness(subject_dir, analysis='adhd')
             
             if 'error' not in volumes:
                 for region, value in volumes['volumes'].items():
@@ -84,8 +83,6 @@ def get_volume(data_path: str = '../analysis/freesurfer_washu',
     ----------
     data_path : str
         Path to FreeSurfer subject directory
-    analysis : str
-        Type of analysis ('adhd' supported)
         
     Returns
     -------
@@ -95,23 +92,20 @@ def get_volume(data_path: str = '../analysis/freesurfer_washu',
     try:
         stats_dir = os.path.join(data_path, 'stats')
         
-        if analysis == 'adhd':
-            volume_regions = {
-                'Left-Caudate': 'caudate_left',
-                'Right-Caudate': 'caudate_right',
-                'Left-Putamen': 'putamen_left',
-                'Right-Putamen': 'putamen_right',
-                'Left-Accumbens-area': 'accumbens_left',
-                'Right-Accumbens-area': 'accumbens_right',
-                'Left-Cerebellum-Cortex': 'cerebellum_cortex_left',
-                'Right-Cerebellum-Cortex': 'cerebellum_cortex_right',
-                'Cerebellar-Vermal-Lobules-I-V': 'cerebellum_vermis_I-V',
-                'Cerebellar-Vermal-Lobules-VI-VII': 'cerebellum_vermis_VI-VII',
-                'Cerebellar-Vermal-Lobules-VIII-X': 'cerebellum_vermis_VIII-X'
-            }
-        else:
-            raise ValueError(f"Analysis type '{analysis}' not supported")
-        
+        volume_regions = {
+            'Left-Caudate': 'caudate_left',
+            'Right-Caudate': 'caudate_right',
+            'Left-Putamen': 'putamen_left',
+            'Right-Putamen': 'putamen_right',
+            'Left-Accumbens-area': 'accumbens_left',
+            'Right-Accumbens-area': 'accumbens_right',
+            'Left-Cerebellum-Cortex': 'cerebellum_cortex_left',
+            'Right-Cerebellum-Cortex': 'cerebellum_cortex_right',
+            'Cerebellar-Vermal-Lobules-I-V': 'cerebellum_vermis_I-V',
+            'Cerebellar-Vermal-Lobules-VI-VII': 'cerebellum_vermis_VI-VII',
+            'Cerebellar-Vermal-Lobules-VIII-X': 'cerebellum_vermis_VIII-X'
+        }
+
         results = {
             'volumes': {},
             'eTIV': None
