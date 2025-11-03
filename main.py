@@ -1,4 +1,5 @@
 import os
+import sys
 import json
 from analysis import run_adhd_analysis
 from preprocess import preprocess_adhd200
@@ -19,18 +20,20 @@ def main(choice=[]):
                 # ADHD Analysis
                 print("Performing Analysis 1...")
                 # Analyze ADHD-200 dataset
-                if not os.path.exists("./processed_data/adhd200"):
+                # Run FreeSurfer preprocessing
+                if not os.listdir("./processed_data/adhd200"):
                     os.makedirs("./processed_data/adhd200")
                     preprocess_adhd200(
                         input_dir="./outside_data/adhd200",
-                        output_dir="./analysis/adhd200",
+                        output_dir="./processed_data/adhd200",
                         phenotypic_file="./outside_data/adhd200_phenotypics.csv",
                         pipeline="athena",
                         create_bids=True
                     )
                 else:
                     print("Processed data directory already exists. Skipping preprocessing.")
-                
+
+                # Gather results
                 # Get array of subject directories in analysis/adhd200
                 subject_dirs = []
                 adhd_analysis_dir = "./analysis/adhd200"
@@ -40,11 +43,9 @@ def main(choice=[]):
                     print(f"Found {len(subject_dirs)} subject directories: {subject_dirs}")
                 else:
                     print(f"Directory {adhd_analysis_dir} does not exist yet.")
-                
-                result = run_adhd_analysis(
-                    subject_dir=subject_dirs
-                )
-                
+
+                result = run_adhd_analysis(subject_dirs)
+
                 print("\nFinished analysis. Processing summary:")
                 print(json.dumps(result, indent=2))
 
@@ -56,4 +57,6 @@ def main(choice=[]):
                 print(f"Analysis {analysis} is not recognized.")
 
 if __name__ == "__main__":
-    main()
+    # Get command line arguments (excluding script name)
+    analysis_numbers = sys.argv[1:]
+    main(analysis_numbers)

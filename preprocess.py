@@ -3,8 +3,10 @@ import json
 import shutil
 import nibabel as nib
 import numpy as np
+import pandas as pd
 from pathlib import Path
 import subprocess
+import re
 from typing import Dict, List, Optional
 
 
@@ -12,9 +14,9 @@ from typing import Dict, List, Optional
 # Preprocessing functions for ADHD-200 dataset
 # ----------------------------------------------------------------------
 def preprocess_adhd200(
-    input_t1: str,
-    subject_id: str,
-    subjects_dir: str = '../output/freesurfer_washu',
+    input_dir: str,
+    output_dir: str,
+    subjects_dir: str = '../processed_data/freesurfer_washu',
     n_threads: int = 4
 ) -> Dict[str, str]:
     """
@@ -22,29 +24,44 @@ def preprocess_adhd200(
     
     Parameters
     ----------
-    input_t1 : str
-        Path to the raw T1-weighted image
-    subject_id : str
-        Unique identifier for the subject
+    input_dir : str
+        Directory containing input data (subject directories with anatomical files)
+    output_dir : str
+        Directory to save processed outputs (same as subjects_dir for FreeSurfer)
     subjects_dir : str
         Path to FreeSurfer subjects directory
     n_threads : int
         Number of parallel threads (default: 4)
         
-    Returns
-    -------
-    dict
-        Dictionary with subject_dir and status
-    """
-    try:
-        os.makedirs(subjects_dir, exist_ok=True)
-        os.environ['SUBJECTS_DIR'] = subjects_dir
+    Returns: None.
+    """    
+    # List all subject directories
+    children = [dir for dir in os.listdir(input_dir) 
+                if os.path.isdir(os.path.join(input_dir, dir))]
+    
+    for child in children:
+        subject_dir = os.path.join(input_dir, child)
         
+        # Find the anatomical T1 file within this subject directory
+        anat_files = [f for f in os.listdir(subject_dir) 
+                        if re.match(r"wssd.*_session_.*_anat\.nii\.gz$", f)]
+        
+        if not anat_files:
+            print(f"No anatomical file found for {child}, skipping...")
+            continue
+        
+        # Use first matching file
+        input_t1 = os.path.join(subject_dir, anat_files[0])
+        subject_id = child  # Use directory name as subject ID
+        
+        print(f"Processing {subject_id}...")
+        
+        # Run FreeSurfer recon-all
         cmd = [
             'recon-all',
             '-i', input_t1,
             '-subjid', subject_id,
-            '-sd', subjects_dir,
+            '-sd', output_dir,
             '-openmp', str(n_threads),
             '-all',
             '-parallel',
@@ -53,18 +70,8 @@ def preprocess_adhd200(
         ]
         
         subprocess.run(cmd, check=True, capture_output=True, text=True)
-        
-        return {
-            'subject_dir': os.path.join(subjects_dir, subject_id),
-            'status': 'success'
-        }
-        
-    except Exception as e:
-        return {
-            'subject_dir': os.path.join(subjects_dir, subject_id),
-            'status': 'failed',
-            'error': str(e)
-        }
+    
+    return
 
 
 
