@@ -4,6 +4,71 @@ import shutil
 import nibabel as nib
 import numpy as np
 from pathlib import Path
+import subprocess
+from typing import Dict, List, Optional
+
+
+# ----------------------------------------------------------------------
+# Preprocessing functions for ADHD-200 dataset
+# ----------------------------------------------------------------------
+def preprocess_adhd200(
+    input_t1: str,
+    subject_id: str,
+    subjects_dir: str = '../output/freesurfer_washu',
+    n_threads: int = 4
+) -> Dict[str, str]:
+    """
+    Run FreeSurfer's complete recon-all pipeline for structural morphometry.
+    
+    Parameters
+    ----------
+    input_t1 : str
+        Path to the raw T1-weighted image
+    subject_id : str
+        Unique identifier for the subject
+    subjects_dir : str
+        Path to FreeSurfer subjects directory
+    n_threads : int
+        Number of parallel threads (default: 4)
+        
+    Returns
+    -------
+    dict
+        Dictionary with subject_dir and status
+    """
+    try:
+        os.makedirs(subjects_dir, exist_ok=True)
+        os.environ['SUBJECTS_DIR'] = subjects_dir
+        
+        cmd = [
+            'recon-all',
+            '-i', input_t1,
+            '-subjid', subject_id,
+            '-sd', subjects_dir,
+            '-openmp', str(n_threads),
+            '-all',
+            '-parallel',
+            '-wsthresh', '25',
+            '-3T'
+        ]
+        
+        subprocess.run(cmd, check=True, capture_output=True, text=True)
+        
+        return {
+            'subject_dir': os.path.join(subjects_dir, subject_id),
+            'status': 'success'
+        }
+        
+    except Exception as e:
+        return {
+            'subject_dir': os.path.join(subjects_dir, subject_id),
+            'status': 'failed',
+            'error': str(e)
+        }
+
+
+
+
 
 # ----------------------------------------------------------------------
 # Preprocessing functions for OpenNeuro BIDS conversion
