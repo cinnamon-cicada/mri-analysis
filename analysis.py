@@ -73,7 +73,7 @@ def run_adhd_analysis(subject_dirs: list) -> Dict:
         return {'error': str(e)}
 
 
-def get_volume(data_path: str = '../analysis/freesurfer_washu',
+def get_volume(data_path: str = './analysis/freesurfer_washu',
     analysis: str = 'adhd'
 ) -> Dict:
     """

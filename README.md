@@ -39,7 +39,7 @@ The `Data/` directory contains the following MRI sequences:
 
 ### Pre-Processed Datasets
 - The ADHD200/WashU preprocessed dataset was downloaded at this link (9GB): https://www.nitrc.org/frs/downloadlink.php/3270
-- For a custom preprocessing pieline, the run.sh script can be run.
+- For a custom preprocessing pipeline, the run.sh script can be run.
 
 ## Table of Contents
 
@@ -64,16 +64,74 @@ The `Data/` directory contains the following MRI sequences:
 ## Installation
 
 ### Prerequisites
-
 ```bash
 # Example prerequisites
 python >= 3.8
 pip
 git
+docker
+```
+
+### FreeSurfer Setup (via Docker)
+
+This project uses FreeSurfer for structural MRI analysis. We run FreeSurfer through Docker to avoid dependency issues.
+
+#### 1. Install Docker
+```bash
+# Update package list
+sudo apt-get update
+
+# Install Docker. Do NOT use `snap`.
+sudo apt-get install -y docker.io
+
+# Start and enable Docker service
+sudo systemctl start docker
+sudo systemctl enable docker
+
+# Add your user to the docker group
+sudo usermod -aG docker $USER
+
+# Log out and log back in, or run:
+newgrp docker
+
+# Verify Docker installation
+docker --version
+```
+
+#### 2. Pull FreeSurfer Docker Image
+```bash
+# Pull FreeSurfer 7.4.1 container
+docker pull freesurfer/freesurfer:7.4.1
+
+# Verify the image was downloaded
+docker images | grep freesurfer
+```
+
+#### 3. Get FreeSurfer License (Free)
+
+FreeSurfer requires a free license to run:
+
+1. Register at: https://surfer.nmr.mgh.harvard.edu/registration.html
+2. You'll receive a `license.txt` file via email
+3. Save it to your project directory or `~/.freesurfer/license.txt`
+```bash
+# Create FreeSurfer config directory (optional)
+mkdir -p ~/.freesurfer
+
+# Move your license file there
+mv license.txt ~/.freesurfer/
+```
+
+#### 4. Test FreeSurfer Installation
+```bash
+# Test FreeSurfer with Docker (replace with your license path)
+docker run --rm \
+  -v /path/to/license.txt:/opt/freesurfer/license.txt:ro \
+  freesurfer/freesurfer:7.4.1 \
+  recon-all --version
 ```
 
 ### Quick Start
-
 ```bash
 # Clone the repository
 git clone https://github.com/username/MRI_Scan.git
@@ -91,7 +149,6 @@ python main.py
 ## Usage
 
 ### Basic Usage
-
 ```python
 # Basic usage example
 from mri_scan import MRIProcessor
@@ -101,8 +158,20 @@ result = processor.process_scan("path/to/scan.nii")
 print(f"Processing complete: {result}")
 ```
 
-### Command Line Interface
+### FreeSurfer Processing
+```python
+# Run FreeSurfer analysis on ADHD-200 dataset
+from preprocessing import preprocess_adhd200
 
+preprocess_adhd200(
+    input_dir='./outside_data/adhd200',
+    output_dir='./processed_data/adhd200',
+    freesurfer_license='./license.txt',  # Path to your license file
+    n_threads=4
+)
+```
+
+### Command Line Interface
 ```bash
 # Command line usage examples
 mri_scan --input data/scan.nii --output results/
@@ -116,6 +185,8 @@ mri_scan --help
 - [NiBabel](https://nipy.org/nibabel/) - Neuroimaging file I/O
 - [SciPy](https://scipy.org/) - Scientific computing
 - [Matplotlib](https://matplotlib.org/) - Plotting library
+- [FreeSurfer](https://surfer.nmr.mgh.harvard.edu/) - Structural MRI analysis (via Docker)
+- [Docker](https://www.docker.com/) - Container platform
 
 ## License
 
@@ -126,6 +197,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - Shoutout to ZK, who provided me with my data
 - ADHD200 Dataset ()
 - OpenNeuro Dataset ()
+- FreeSurfer Development Team
 
 ## Changelog
 

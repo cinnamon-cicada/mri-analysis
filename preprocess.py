@@ -1,4 +1,5 @@
 import os
+import glob
 import json
 import shutil
 import nibabel as nib
@@ -9,71 +10,92 @@ import subprocess
 import re
 from typing import Dict, List, Optional
 
-
 # ----------------------------------------------------------------------
 # Preprocessing functions for ADHD-200 dataset
 # ----------------------------------------------------------------------
 def preprocess_adhd200(
-    input_dir: str,
-    output_dir: str,
-    subjects_dir: str = '../processed_data/freesurfer_washu',
-    n_threads: int = 4
-) -> Dict[str, str]:
+    input_dir: str = './outside_data/adhd200',
+    output_dir: str = './processed_data/adhd200_fastsurfer',
+    n_threads: int = 4,
+    freesurfer_license: Optional[str] = None
+) -> None:
     """
-    Run FreeSurfer's complete recon-all pipeline for structural morphometry.
-    
+    Run FastSurfer (GPU-accelerated FreeSurfer alternative) via Docker.
+
     Parameters
     ----------
     input_dir : str
-        Directory containing input data (subject directories with anatomical files)
+        Directory containing subject directories (each with anat/*.nii.gz)
     output_dir : str
-        Directory to save processed outputs (same as subjects_dir for FreeSurfer)
-    subjects_dir : str
-        Path to FreeSurfer subjects directory
+        Directory to save processed outputs
     n_threads : int
-        Number of parallel threads (default: 4)
-        
-    Returns: None.
-    """    
-    # List all subject directories
-    children = [dir for dir in os.listdir(input_dir) 
-                if os.path.isdir(os.path.join(input_dir, dir))]
-    
-    for child in children:
-        subject_dir = os.path.join(input_dir, child)
-        
-        # Find the anatomical T1 file within this subject directory
-        anat_files = [f for f in os.listdir(subject_dir) 
-                        if re.match(r"wssd.*_session_.*_anat\.nii\.gz$", f)]
-        
-        if not anat_files:
-            print(f"No anatomical file found for {child}, skipping...")
+        Number of CPU threads for non-GPU tasks
+    freesurfer_license : str, optional
+        Path to FreeSurfer license file (still required)
+    """
+    input_dir = os.path.abspath(input_dir)
+    output_dir = os.path.abspath(output_dir)
+    os.makedirs(output_dir, exist_ok=True)
+
+    # Check for FreeSurfer license
+    if freesurfer_license is None or not os.path.exists(freesurfer_license):
+        print("FreeSurfer license file not found.")
+        print("Get one free at: https://surfer.nmr.mgh.harvard.edu/registration.html")
+        return
+    freesurfer_license = os.path.abspath(freesurfer_license)
+    print(f"Using FreeSurfer license: {freesurfer_license}")
+
+    subjects = [d for d in os.listdir(input_dir) if os.path.isdir(os.path.join(input_dir, d))]
+    print(f"Found {len(subjects)} subjects to process in {input_dir}")
+
+    for subj in subjects:
+        anat_dir = os.path.join(input_dir, subj, "anat")
+        if not os.path.exists(anat_dir):
+            print(f"No anat directory found for {subj}, skipping...")
             continue
+
+        t1_files = glob.glob(os.path.join(anat_dir, "sub-*_T1w.nii.gz"))
+        if not t1_files:
+            print(f"No T1w file found for {subj}, skipping...")
+            continue
+
+        t1_path = t1_files[0]
+        print(f"Processing {subj} with file: {os.path.basename(t1_path)}")
+
+        # Get current user ID and group ID
+        uid = subprocess.check_output(["id", "-u"]).decode().strip()
+        gid = subprocess.check_output(["id", "-g"]).decode().strip()
         
-        # Use first matching file
-        input_t1 = os.path.join(subject_dir, anat_files[0])
-        subject_id = child  # Use directory name as subject ID
-        
-        print(f"Processing {subject_id}...")
-        
-        # Run FreeSurfer recon-all
-        cmd = [
-            'recon-all',
-            '-i', input_t1,
-            '-subjid', subject_id,
-            '-sd', output_dir,
-            '-openmp', str(n_threads),
-            '-all',
-            '-parallel',
-            '-wsthresh', '25',
-            '-3T'
+        # FastSurfer Docker command
+        docker_cmd = [
+            "docker", "run", "--rm",
+            "--gpus", "all",                     # GPU access
+            "-u", f"{uid}:{gid}",                # Run as current user
+            "-e", "HOME=/tmp",
+            "-e", f"OMP_NUM_THREADS={n_threads}",
+            "-e", "FS_LICENSE=/opt/freesurfer/license.txt",  # tell FreeSurfer where license is
+            "-v", f"{input_dir}:/input:ro",
+            "-v", f"{output_dir}:/output",
+            "-v", f"{freesurfer_license}:/opt/freesurfer/license.txt:ro",
+            "deepmi/fastsurfer:latest",
+            "--t1", f"/input/{subj}/anat/{os.path.basename(t1_path)}",
+            "--sid", subj,
+            "--sd", "/output",
+            "--threads", "8"
         ]
-        
-        subprocess.run(cmd, check=True, capture_output=True, text=True)
-    
-    return
 
+        print("Running command:")
+        print(" ".join(docker_cmd))
 
+        try:
+            result = subprocess.run(docker_cmd, check=True, capture_output=True, text=True)
+            print(f"✅ Successfully processed {subj}")
+        except subprocess.CalledProcessError as e:
+            print(f"❌ FastSurfer failed for {subj}:")
+            print(f"STDERR:\n{e.stderr}")
+            print(f"STDOUT:\n{e.stdout}")
+
+    print(f"\nProcessing complete! Results saved to: {output_dir}")
 
 
 
@@ -319,408 +341,3 @@ def _create_events_template(output_dir, events_path):
         f.write("# onset: time in seconds from start of acquisition\n")
         f.write("# duration: duration in seconds\n")
         f.write("# trial_type: condition/stimulus type\n")
-
-
-# ----------------------------------------------------------------------
-# ADHD-200 Pre-Processing
-# ----------------------------------------------------------------------
-
-def preprocess_adhd200(
-    input_dir,
-    output_dir,
-    phenotypic_file=None,
-    pipeline='athena',
-    create_bids=True
-):
-    """
-    Preprocess ADHD-200 dataset for analysis and comparison.
-    
-    The ADHD-200 dataset contains resting-state fMRI and structural MRI from
-    973 participants across 8 sites. Data is typically preprocessed using
-    Athena, NIAK, or Burner pipelines.
-    
-    Parameters:
-    -----------
-    input_dir : str or Path
-        Directory containing ADHD-200 downloaded data
-        Expected structure: input_dir/subject_id/
-    output_dir : str or Path
-        Output directory for standardized dataset
-    phenotypic_file : str or Path, optional
-        Path to phenotypic CSV file with participant metadata
-    pipeline : str, default='athena'
-        Preprocessing pipeline used ('athena', 'niak', or 'burner')
-    create_bids : bool, default=True
-        Whether to convert to BIDS format (recommended for comparison)
-    
-    Returns:
-    --------
-    dict : Summary of processed subjects with metadata
-    """
-    
-    input_dir = Path(input_dir)
-    output_dir = Path(output_dir)
-    output_dir.mkdir(parents=True, exist_ok=True)
-    
-    # Load phenotypic data if provided
-    phenotypic_data = None
-    if phenotypic_file:
-        phenotypic_data = pd.read_csv(phenotypic_file)
-    
-    # Track processed subjects
-    processed_subjects = []
-    
-    # Process each site
-    for site_dir in input_dir.iterdir():
-        if not site_dir.is_dir():
-            continue
-
-    # Process each subject in the site
-    for subject_dir in site_dir.iterdir():
-        if not subject_dir.is_dir():
-            continue
-        
-        subject_id = subject_dir.name
-        
-        try:
-            subject_info = _process_adhd_subject(
-                subject_dir=subject_dir,
-                output_dir=output_dir,
-                subject_id=subject_id,
-                site_name="WashU",  # Test site name; adapt as needed
-                phenotypic_data=phenotypic_data,
-                pipeline=pipeline,
-                create_bids=create_bids
-            )
-            
-            processed_subjects.append(subject_info)
-            print(f"  ✓ Processed {subject_id}")
-            
-        except Exception as e:
-            print(f"  ✗ Error processing {subject_id}: {str(e)}")
-            continue
-    
-    # Create summary files
-    summary_df = pd.DataFrame(processed_subjects)
-    summary_df.to_csv(output_dir / "processing_summary.csv", index=False)
-    
-    # Create dataset description
-    if create_bids:
-        _create_adhd_dataset_description(output_dir, pipeline)
-    
-    # Generate QC report
-    _generate_adhd_qc_report(summary_df, output_dir)
-    
-    print(f"\n{'='*60}")
-    print(f"Processing complete!")
-    print(f"Total subjects processed: {len(processed_subjects)}")
-    print(f"Output directory: {output_dir}")
-    print(f"{'='*60}")
-    
-    return {
-        'n_subjects': len(processed_subjects),
-        'sites': summary_df['site'].unique().tolist() if 'site' in summary_df else [],
-        'diagnosis_breakdown': summary_df['diagnosis'].value_counts().to_dict() if 'diagnosis' in summary_df else {},
-        'summary_file': str(output_dir / "processing_summary.csv")
-    }
-
-
-def _process_adhd_subject(
-    subject_dir,
-    output_dir,
-    subject_id,
-    site_name,
-    phenotypic_data,
-    pipeline,
-    create_bids
-):
-    """Process individual ADHD-200 subject."""
-    
-    # Get phenotypic info for this subject
-    subject_pheno = None
-    diagnosis = "unknown"
-    age = None
-    sex = None
-    
-    if phenotypic_data is not None:
-        subject_row = phenotypic_data[
-            (phenotypic_data['ScanDirID'] == int(subject_id)) | 
-            (phenotypic_data['SubjectID'] == int(subject_id))
-        ]
-        if not subject_row.empty:
-            subject_pheno = subject_row.iloc[0]
-            diagnosis = subject_pheno.get('DX', 'unknown')
-            age = subject_pheno.get('Age', None)
-            sex = subject_pheno.get('Gender', None)
-    
-    # Find functional and anatomical files
-    func_files = list(subject_dir.glob(f"**/func/*{pipeline}*.nii.gz"))
-    anat_files = list(subject_dir.glob(f"**/anat/*.nii.gz"))
-    
-    if not func_files:
-        func_files = list(subject_dir.glob("**/rest*.nii.gz"))
-    if not anat_files:
-        anat_files = list(subject_dir.glob("**/mprage*.nii.gz"))
-    
-    # Create output structure
-    if create_bids:
-        subject_label = f"sub-{site_name}{subject_id}"
-        subject_out_dir = output_dir / subject_label
-        func_out_dir = subject_out_dir / "func"
-        anat_out_dir = subject_out_dir / "anat"
-    else:
-        subject_out_dir = output_dir / site_name / subject_id
-        func_out_dir = subject_out_dir / "func"
-        anat_out_dir = subject_out_dir / "anat"
-    
-    func_out_dir.mkdir(parents=True, exist_ok=True)
-    anat_out_dir.mkdir(parents=True, exist_ok=True)
-    
-    # Process functional files
-    func_processed = []
-    for func_file in func_files:
-        if create_bids:
-            out_name = f"{subject_label}_task-rest_bold.nii.gz"
-        else:
-            out_name = func_file.name
-        
-        out_path = func_out_dir / out_name
-        shutil.copy2(func_file, out_path)
-        func_processed.append(str(out_path.relative_to(output_dir)))
-        
-        # Create JSON sidecar with metadata
-        _create_adhd_json_sidecar(
-            out_path.with_suffix('.json'),
-            modality='func',
-            site=site_name,
-            pipeline=pipeline,
-            diagnosis=diagnosis,
-            age=age,
-            sex=sex
-        )
-    
-    # Process anatomical files
-    anat_processed = []
-    for anat_file in anat_files:
-        if create_bids:
-            out_name = f"{subject_label}_T1w.nii.gz"
-        else:
-            out_name = anat_file.name
-        
-        out_path = anat_out_dir / out_name
-        shutil.copy2(anat_file, out_path)
-        anat_processed.append(str(out_path.relative_to(output_dir)))
-        
-        # Create JSON sidecar
-        _create_adhd_json_sidecar(
-            out_path.with_suffix('.json'),
-            modality='anat',
-            site=site_name,
-            pipeline=pipeline,
-            diagnosis=diagnosis,
-            age=age,
-            sex=sex
-        )
-    
-    return {
-        'subject_id': subject_id,
-        'site': site_name,
-        'diagnosis': diagnosis,
-        'age': age,
-        'sex': sex,
-        'n_func_files': len(func_processed),
-        'n_anat_files': len(anat_processed),
-        'func_files': func_processed,
-        'anat_files': anat_processed
-    }
-
-
-def _create_adhd_json_sidecar(json_path, modality, site, pipeline, 
-                               diagnosis, age, sex):
-    """
-    Create JSON sidecar for ADHD-200 data.
-    
-    Note: This reuses the concept from preprocess_openneuro() but adapts
-    it for ADHD-200 specific metadata structure.
-    """
-    
-    metadata = {
-        "Dataset": "ADHD-200",
-        "Site": site,
-        "PreprocessingPipeline": pipeline,
-    }
-    
-    # Add phenotypic data
-    if diagnosis != "unknown":
-        metadata["Diagnosis"] = diagnosis
-    if age is not None:
-        metadata["Age"] = float(age)
-    if sex is not None:
-        metadata["Sex"] = sex
-    
-    # Add modality-specific metadata
-    if modality == 'func':
-        metadata.update({
-            "TaskName": "rest",
-            "Modality": "resting-state fMRI",
-            "Comments": "Preprocessed resting-state functional MRI"
-        })
-    elif modality == 'anat':
-        metadata.update({
-            "Modality": "T1-weighted structural MRI",
-            "Comments": "Structural anatomical scan"
-        })
-    
-    with open(json_path, 'w') as f:
-        json.dump(metadata, f, indent=4)
-
-
-def _create_adhd_dataset_description(output_dir, pipeline):
-    """
-    Create dataset_description.json for ADHD-200.
-    
-    This function is similar to the one used in preprocess_openneuro(),
-    demonstrating reuse of the BIDS structure concept.
-    """
-    
-    description = {
-        "Name": "ADHD-200 Preprocessed Dataset",
-        "BIDSVersion": "1.9.0",
-        "DatasetType": "derivative",
-        "GeneratedBy": [{
-            "Name": f"ADHD-200 {pipeline.upper()} Pipeline",
-            "Description": f"Preprocessed using the {pipeline} pipeline"
-        }],
-        "SourceDatasets": [{
-            "DOI": "10.1016/j.neuroimage.2016.06.034",
-            "URL": "http://fcon_1000.projects.nitrc.org/indi/adhd200/",
-            "Version": "1.0"
-        }],
-        "License": "CC0",
-        "Authors": [
-            "ADHD-200 Consortium",
-            "Preprocessed Connectomes Project"
-        ],
-        "ReferencesAndLinks": [
-            "http://preprocessed-connectomes-project.org/adhd200/",
-            "http://fcon_1000.projects.nitrc.org/indi/adhd200/"
-        ]
-    }
-    
-    with open(output_dir / "dataset_description.json", 'w') as f:
-        json.dump(description, f, indent=4)
-
-
-def _generate_adhd_qc_report(summary_df, output_dir):
-    """Generate quality control report for ADHD-200 processing."""
-    
-    report_path = output_dir / "qc_report.txt"
-    
-    with open(report_path, 'w') as f:
-        f.write("ADHD-200 Processing Quality Control Report\n")
-        f.write("=" * 60 + "\n\n")
-        
-        # Overall statistics
-        f.write(f"Total subjects processed: {len(summary_df)}\n")
-        
-        if 'site' in summary_df:
-            f.write(f"\nSubjects per site:\n")
-            for site, count in summary_df['site'].value_counts().items():
-                f.write(f"  {site}: {count}\n")
-        
-        if 'diagnosis' in summary_df:
-            f.write(f"\nDiagnosis breakdown:\n")
-            for dx, count in summary_df['diagnosis'].value_counts().items():
-                f.write(f"  {dx}: {count}\n")
-        
-        if 'age' in summary_df:
-            f.write(f"\nAge statistics:\n")
-            f.write(f"  Mean: {summary_df['age'].mean():.2f}\n")
-            f.write(f"  Std: {summary_df['age'].std():.2f}\n")
-            f.write(f"  Range: {summary_df['age'].min():.0f}-{summary_df['age'].max():.0f}\n")
-        
-        if 'sex' in summary_df:
-            f.write(f"\nSex distribution:\n")
-            for sex, count in summary_df['sex'].value_counts().items():
-                f.write(f"  {sex}: {count}\n")
-        
-        f.write(f"\nData completeness:\n")
-        f.write(f"  Subjects with functional data: {(summary_df['n_func_files'] > 0).sum()}\n")
-        f.write(f"  Subjects with anatomical data: {(summary_df['n_anat_files'] > 0).sum()}\n")
-    
-    print(f"\nQC report saved to: {report_path}")
-
-
-# Additional utility functions for ADHD-200 specific processing
-
-def download_adhd_phenotypic():
-    """
-    Helper function to download ADHD-200 phenotypic data.
-    
-    Returns the path to the downloaded CSV file.
-    """
-    import urllib.request
-    
-    phenotypic_url = "https://fcon_1000.projects.nitrc.org/indi/adhd200/ADHD200_40sub_preprocessed/phenotypic/ADHD200_40sub_preprocessed_phenotypics.csv"
-    output_file = "adhd200_phenotypics.csv"
-    
-    print(f"Downloading phenotypic data from NITRC...")
-    urllib.request.urlretrieve(phenotypic_url, output_file)
-    print(f"Downloaded: {output_file}")
-    
-    return output_file
-
-
-def align_adhd_to_openneuro_format(adhd_dir, subject_id):
-    """
-    Convert ADHD-200 subject to match OpenNeuro-compatible format.
-    
-    This function bridges the two preprocessing functions, allowing
-    ADHD-200 data to be formatted like OpenNeuro data.
-    
-    Parameters:
-    -----------
-    adhd_dir : str or Path
-        Directory with ADHD-200 BIDS-formatted subject
-    subject_id : str
-        Subject identifier
-    
-    Returns:
-    --------
-    dict : Mapping of files and metadata
-    """
-    
-    adhd_dir = Path(adhd_dir)
-    subject_dir = adhd_dir / f"sub-{subject_id}"
-    
-    # Load ADHD-200 metadata
-    func_json = list((subject_dir / "func").glob("*.json"))
-    anat_json = list((subject_dir / "anat").glob("*.json"))
-    
-    alignment_info = {
-        'subject_id': subject_id,
-        'functional': {},
-        'anatomical': {}
-    }
-    
-    # Map functional data
-    if func_json:
-        with open(func_json[0], 'r') as f:
-            func_meta = json.load(f)
-        alignment_info['functional'] = {
-            'task': 'rest',
-            'acquisition_type': 'resting-state',
-            'original_site': func_meta.get('Site'),
-            'preprocessing': func_meta.get('PreprocessingPipeline')
-        }
-    
-    # Map anatomical data
-    if anat_json:
-        with open(anat_json[0], 'r') as f:
-            anat_meta = json.load(f)
-        alignment_info['anatomical'] = {
-            'modality': 'T1w',
-            'original_site': anat_meta.get('Site')
-        }
-    
-    return alignment_info
