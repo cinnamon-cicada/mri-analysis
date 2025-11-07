@@ -11,7 +11,7 @@ import re
 from typing import Dict, List, Optional
 
 # ----------------------------------------------------------------------
-# Preprocessing functions for ADHD-200 dataset
+# 1. Preprocessing for ADHD Analysis - OUTSIDE DATASET
 # ----------------------------------------------------------------------
 def preprocess_adhd200(
     input_dir: str = './outside_data/adhd200',
@@ -98,9 +98,173 @@ def preprocess_adhd200(
     print(f"\nProcessing complete! Results saved to: {output_dir}")
 
 
+# ----------------------------------------------------------------------
+# 2. Preprocessing function for ADHD-200 dataset - LAB DATASET
+# ----------------------------------------------------------------------
+
+def extract_subject_info(filename):
+    """
+    Extract subject ID and scan info from your filename format.
+    Example: SUBJECT_XXX.02.01.08-12-58.WIP_cs_2.8_T1W_3D_TFE.01.nii
+    Returns: (subject_id, series_num, scan_type)
+    """
+    parts = filename.split('.')
+    subject_id = parts[0]  # "SUBJECT_XXX"
+    series_num = parts[1]   # "02", "03", etc.
+    
+    # Extract scan type from middle part
+    scan_type = None
+    if "SURVEY" in filename:
+        scan_type = "localizer"
+    elif "T1W_3D_TFE" in filename:
+        scan_type = "T1w"
+    elif "fMRI_task" in filename:
+        scan_type = "func"
+    
+    return subject_id, series_num, scan_type
+
+def preprocess_lab_data(input_dir, output_dir, freesurfer_license=None):
+    """
+    Prepare organized T1w scans for FastSurfer processing.
+    
+    - Reads from organized subject directories
+    - Checks orientation (converts to RAS if needed)
+    - Compresses to .nii.gz format
+    - Generates FastSurfer command scripts
+    
+    Parameters:
+    -----------
+    input_dir : str or Path
+        Directory containing organized subject folders (e.g., organized_lab_data/)
+    output_dir : str or Path
+        Output directory for FastSurfer-ready data (e.g., processed_data/adhd_lab/)
+    freesurfer_license : str
+        Path to FreeSurfer license file (still required)
+    
+    Returns:
+    --------
+    dict : Dictionary with FastSurfer commands and ready files
+    """
+    input_dir = Path(input_dir)
+    output_dir = Path(output_dir)
+    output_dir.mkdir(parents=True, exist_ok=True)
+    
+    print("=" * 60)
+    print("Preparing T1w scans for FastSurfer")
+    print("=" * 60)
+    print(f"Input: {input_dir}")
+    print(f"Output: {output_dir}")
+    print("")
+    
+    fastsurfer_ready = {}
+    
+    # Scan input directory for subject folders
+    for subject_dir in sorted(input_dir.iterdir()):
+        if not subject_dir.is_dir():
+            continue
+        
+        subject_id = subject_dir.name
+        anat_dir = subject_dir / "anat"
+        
+        # Look for T1w file
+        t1_files = list(anat_dir.glob(f"{subject_id}_T1w.nii"))
+        if not t1_files:
+            print(f"⚠ Skipping {subject_id}: No T1w scan found")
+            continue
+        
+        t1_file = t1_files[0]
+
+        print(f"[{subject_id}]")
+        
+        # Load and check T1w scan
+        img = nib.load(t1_file)
+        header = img.header
+        affine = img.affine
+        data = img.get_fdata()
+        
+        voxel_sizes = header.get_zooms()[:3]
+        dimensions = data.shape[:3]
+        orientation = nib.aff2axcodes(affine)
+        
+        print(f"  Voxel size: {voxel_sizes[0]:.2f} x {voxel_sizes[1]:.2f} x {voxel_sizes[2]:.2f} mm")
+        print(f"  Matrix: {dimensions[0]} x {dimensions[1]} x {dimensions[2]}")
+        print(f"  Orientation: {orientation}")
+        
+        # Check if resolution is suitable for FastSurfer
+        if max(voxel_sizes) > 1.5:
+            print(f"  ⚠ Warning: Voxel size > 1.5mm may reduce accuracy")
+        elif min(voxel_sizes) < 0.7:
+            print(f"  ℹ Very high resolution (will increase processing time)")
+        else:
+            print(f"  ✓ Resolution optimal for FastSurfer (0.7-1.5mm)")
+        
+        # Prepare FastSurfer-ready file
+        fastsurfer_dir = output_dir / subject_id
+        fastsurfer_dir.mkdir(exist_ok=True)
+        
+        t1_ready = fastsurfer_dir / "T1.nii.gz"
+        
+        # Reorient to RAS if needed
+        if orientation != ('R', 'A', 'S'):
+            print(f"  Reorienting from {orientation} to RAS...")
+            img_reoriented = nib.as_closest_canonical(img)
+            nib.save(img_reoriented, t1_ready)
+            print(f"  ✓ Reoriented and saved")
+        else:
+            print(f"  ✓ Already in RAS orientation")
+            nib.save(img, t1_ready)
+        
+        # Copy metadata
+        json_ready = fastsurfer_dir / "T1.json"
+        shutil.copy2(t1_file.with_suffix('.json'), json_ready)
+        
+        print(f"  ✓ Ready for FastSurfer: {t1_ready}")
+        
+        # Build command as list for direct execution
+        cmd_args = [
+            "/usr/local/FastSurfer/run_fastsurfer.sh",
+            "--t1", str(t1_ready),
+            "--sid", subject_id,
+            "--sd", str(output_dir / subject_id),
+            "--parallel",
+            "--threads", "8",
+            "--freesurfer-license", freesurfer_license
+        ]
+        print(f"  Running FastSurfer command: {' '.join(cmd_args)}")
+
+        try:
+            subprocess.run(cmd_args, check=True, capture_output=True, text=True)
+            print(f"  ✅ Successfully processed {subject_id}")
+            processing_status = "success"
+        except Exception as e:
+            print(f"  ❌ FastSurfer failed for {subject_id}: {e}")
+            processing_status = "failed"
+        
+        fastsurfer_ready[subject_id] = {
+            'T1_ready': str(t1_ready),
+            'command': ' '.join(cmd_args),
+            'output_dir': str(fastsurfer_dir),
+            'voxel_size': voxel_sizes,
+            'orientation_changed': orientation != ('R', 'A', 'S'),
+            'processing_status': processing_status
+        }
+    
+    print("=" * 60)
+    print(f"✓ Processed {len(fastsurfer_ready)} subject(s) with FastSurfer")
+    print("=" * 60)
+    
+    # Print summary of processing results
+    success_count = sum(1 for s in fastsurfer_ready.values() if s.get('processing_status') == 'success')
+    failed_count = sum(1 for s in fastsurfer_ready.values() if s.get('processing_status') == 'failed')
+    skipped_count = sum(1 for s in fastsurfer_ready.values() if s.get('processing_status') == 'skipped')
+    
+    print(f"Results: {success_count} successful, {failed_count} failed, {skipped_count} skipped")
+    print("")
+    
+    return fastsurfer_ready
 
 # ----------------------------------------------------------------------
-# Preprocessing functions for OpenNeuro BIDS conversion
+# 3. Preprocessing function for OpenNeuro-Dataset - OUTSIDE DATASET
 # ----------------------------------------------------------------------
 
 def preprocess_openneuro(

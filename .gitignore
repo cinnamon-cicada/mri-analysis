@@ -1,6 +1,9 @@
 lab_data/*
 outside_data/*
 processed_data/*
+organized_lab_data/*
+venv/*
+.venv/*
 env/*
 __pycache__/*
 

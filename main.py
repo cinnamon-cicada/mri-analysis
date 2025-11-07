@@ -2,7 +2,7 @@ import os
 import sys
 import json
 from analysis import run_adhd_analysis
-from preprocess import preprocess_adhd200
+from preprocess import preprocess_adhd200, preprocess_lab_data
 
 def main(choice=[], subjects=None):
     # Pre-process data in general
@@ -18,7 +18,7 @@ def main(choice=[], subjects=None):
             # Specific analysis code here
             if analysis == "1":
                 # ADHD Analysis
-                print("Performing Analysis 1.")
+                print("Performing Analysis 1...")
                 # Analyze ADHD-200 dataset
                 # Run FreeSurfer preprocessing
                 if not os.path.exists("./processed_data/adhd200"):
@@ -27,12 +27,20 @@ def main(choice=[], subjects=None):
                     # Get the script directory to build absolute paths
                     script_dir = os.path.dirname(os.path.abspath(__file__))
                     license_path = os.path.join(script_dir, "license.txt")
-                    
+
                     preprocess_adhd200(
                         input_dir="./outside_data/adhd200",
                         output_dir="./processed_data/adhd200",
                         freesurfer_license=license_path
                     )
+
+                    preprocess_lab_data(
+                        input_dir="./organized_lab_data",
+                        output_dir="./processed_data/adhd_lab",
+                        freesurfer_license=license_path)
+                    
+                    run_adhd_analysis()
+
                 else:
                     print("Processed data directory already exists. Skipping preprocessing.")
 
