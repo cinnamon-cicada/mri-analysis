@@ -2,6 +2,7 @@ from typing import Dict, List, Optional
 import os
 import numpy as np
 import json
+from math import erf, sqrt
 
 # ----------------------------------
 # ADHD Analysis Script
@@ -11,36 +12,59 @@ def run_adhd_analysis() -> None:
     """
     Run ADHD-200 analysis and return summarized results.
     """
-    outside_dirs = [os.listdir("./processed_data/adhd200/")]
-    lab_dirs = [os.listdir("./processed_data/adhd_lab/")]
+    outside_base = "./processed_data/adhd200/"
+    lab_base = "./processed_data/adhd_lab/"
+    outside_dirs = [os.path.join(outside_base, d) for d in os.listdir(outside_base)]
+    lab_dirs = [os.path.join(lab_base, d) for d in os.listdir(lab_base)]
     outside_data = get_adhd_summarized(
         subject_dirs=outside_dirs
     )
+    print("\n\n************\n")
     lab_data = get_adhd_summarized(
-        subject_dirs=lab_dirs
+        subject_dirs=lab_dirs # TODO: this directory empty
     )
 
-    percentile_results = {}
+    volume_percentiles = []
+    thickness_percentiles = []
 
     # Get percentile based on z-score for each region
     for region in outside_data['volumes']:
+        if region not in lab_data['volumes']:
+            print("[WARNING] Volume region missing in lab data:", region)
+            volume_percentiles.append((region, None))
+            continue
         value = lab_data['volumes'][region]['mean']
         mean = outside_data['volumes'][region]['mean']
         std = outside_data['volumes'][region]['std']
-        z_score = (value - mean) / std  # Example: compare to 1000 mm3
-        percentile = 0.5 * (1 + np.math.erf(z_score / np.sqrt(2)))
-        percentile_results[region]['volume'] = percentile
-    for region in lab_data['thickness']:
+        z_score = (value - mean) / std if std != 0 else 0
+        percentile = 0.5 * (1 + erf(z_score / sqrt(2)))
+        volume_percentiles.append((region, percentile))
+
+    for region in outside_data['thickness']:
+        if region not in lab_data['thickness']:
+            print("[WARNING] Region missing in lab data:", region)
+            thickness_percentiles.append((region, None))
+            continue
         value = lab_data['thickness'][region]['mean']
         mean = outside_data['thickness'][region]['mean']
         std = outside_data['thickness'][region]['std']
-        z_score = (value - mean) / std
-        percentile = 0.5 * (1 + np.math.erf(z_score / np.sqrt(2)))
-        percentile_results[region]['thickness'] = percentile
+        z_score = (value - mean) / std if std != 0 else 0
+        percentile = 0.5 * (1 + erf(z_score / sqrt(2)))
+        thickness_percentiles.append((region, percentile))
+
+    # Sort by descending percentile
+    volume_percentiles.sort(key=lambda x: x[1], reverse=True)
+    thickness_percentiles.sort(key=lambda x: x[1], reverse=True)
+    
+    # Build sorted percentile_results
+    percentile_results = {}
+    percentile_results['volume_percentiles'] = volume_percentiles
+    percentile_results['thickness_percentiles'] = thickness_percentiles
 
     # Write to JSON file
     with open("./analysis/adhd_analysis_results.json", "w") as f:
         json.dump(percentile_results, f, indent=2)
+
 
 def get_adhd_summarized(subject_dirs: list) -> Dict:
     """
@@ -57,19 +81,19 @@ def get_adhd_summarized(subject_dirs: list) -> Dict:
     dict
         Dictionary with mean and std for each brain region
     """
+    print("[DEBUG] Starting ADHD summarization at", subject_dirs)
     try:        
         all_volumes = {}
         all_thickness = {}
         all_etiv = []
         
         for subject_dir in subject_dirs:
-            print("Processing subject:", subject_dir)
             volumes = get_volume(subject_dir, analysis='adhd')
             thickness = get_thickness(subject_dir, analysis='adhd')
-            print(json.dumps({'volumes': volumes, 'thickness': thickness}, indent=2))
 
             if 'error' not in volumes:
                 for region, value in volumes['volumes'].items():
+                    print("[DEBUG] Region, volume:", region, value, len(all_volumes))
                     if region not in all_volumes:
                         all_volumes[region] = []
                     all_volumes[region].append(value)
@@ -89,7 +113,12 @@ def get_adhd_summarized(subject_dirs: list) -> Dict:
             'thickness': {},
             'eTIV': {}
         }
-        
+        # TODO: all_X is not working.
+        print("[DEBUG] Aggregating results from...", json.dumps({
+            'all_volumes': {k: len(v) for k, v in all_volumes.items()},
+            'all_thickness': {k: len(v) for k, v in all_thickness.items()},
+            'all_etiv_count': len(all_etiv)
+        }, indent=2))
         for region, values in all_volumes.items():
             results['volumes'][region] = {
                 'mean': np.mean(values),
@@ -107,7 +136,7 @@ def get_adhd_summarized(subject_dirs: list) -> Dict:
                 'mean': np.mean(all_etiv),
                 'std': np.std(all_etiv)
             }
-        
+        print("[DEBUG] Final aggregated results:", json.dumps(results, indent=2))
         return results
         
     except Exception as e:

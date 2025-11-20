@@ -9,6 +9,7 @@ from pathlib import Path
 import subprocess
 import re
 from typing import Dict, List, Optional
+from utils import run_fastsurfer_docker
 
 # ----------------------------------------------------------------------
 # 1. Preprocessing for ADHD Analysis - OUTSIDE DATASET
@@ -60,43 +61,10 @@ def preprocess_adhd200(
             continue
 
         t1_path = t1_files[0]
-        print(f"Processing {subj} with file: {os.path.basename(t1_path)}")
+        print(f"Pre-processing {subj} with file: {os.path.basename(t1_path)}")
 
-        # Get current user ID and group ID
-        uid = subprocess.check_output(["id", "-u"]).decode().strip()
-        gid = subprocess.check_output(["id", "-g"]).decode().strip()
-        
-        # FastSurfer Docker command
-        docker_cmd = [
-            "docker", "run", "--rm",
-            "--gpus", "all",                     # GPU access
-            "-u", f"{uid}:{gid}",                # Run as current user
-            "-e", "HOME=/tmp",
-            "-e", f"OMP_NUM_THREADS={n_threads}",
-            "-e", "FS_LICENSE=/opt/freesurfer/license.txt",  # tell FreeSurfer where license is
-            "-v", f"{input_dir}:/input:ro",
-            "-v", f"{output_dir}:/output",
-            "-v", f"{freesurfer_license}:/opt/freesurfer/license.txt:ro",
-            "deepmi/fastsurfer:latest",
-            "--t1", f"/input/{subj}/anat/{os.path.basename(t1_path)}",
-            "--sid", subj,
-            "--sd", "/output",
-            "--threads", "8"
-        ]
-
-        print("Running command:")
-        print(" ".join(docker_cmd))
-
-        try:
-            result = subprocess.run(docker_cmd, check=True, capture_output=True, text=True)
-            print(f"✅ Successfully processed {subj}")
-        except subprocess.CalledProcessError as e:
-            print(f"❌ FastSurfer failed for {subj}:")
-            print(f"STDERR:\n{e.stderr}")
-            print(f"STDOUT:\n{e.stdout}")
-
-    print(f"\nProcessing complete! Results saved to: {output_dir}")
-
+        # Run FastSurfer Docker command
+        run_fastsurfer_docker(subj, input_dir, output_dir, freesurfer_license, n_threads)
 
 # ----------------------------------------------------------------------
 # 2. Preprocessing function for ADHD-200 dataset - LAB DATASET
@@ -123,7 +91,7 @@ def extract_subject_info(filename):
     
     return subject_id, series_num, scan_type
 
-def preprocess_lab_data(input_dir, output_dir, freesurfer_license=None):
+def prepare_for_fastsurfer(input_dir):
     """
     Prepare organized T1w scans for FastSurfer processing.
     
@@ -136,27 +104,20 @@ def preprocess_lab_data(input_dir, output_dir, freesurfer_license=None):
     -----------
     input_dir : str or Path
         Directory containing organized subject folders (e.g., organized_lab_data/)
-    output_dir : str or Path
-        Output directory for FastSurfer-ready data (e.g., processed_data/adhd_lab/)
-    freesurfer_license : str
-        Path to FreeSurfer license file (still required)
     
     Returns:
     --------
     dict : Dictionary with FastSurfer commands and ready files
     """
     input_dir = Path(input_dir)
-    output_dir = Path(output_dir)
-    output_dir.mkdir(parents=True, exist_ok=True)
     
     print("=" * 60)
-    print("Preparing T1w scans for FastSurfer")
+    print("Preparing zipped T1w scans for FastSurfer...")
     print("=" * 60)
     print(f"Input: {input_dir}")
-    print(f"Output: {output_dir}")
     print("")
     
-    fastsurfer_ready = {}
+    subjects = []
     
     # Scan input directory for subject folders
     for subject_dir in sorted(input_dir.iterdir()):
@@ -164,14 +125,21 @@ def preprocess_lab_data(input_dir, output_dir, freesurfer_license=None):
             continue
         
         subject_id = subject_dir.name
+        subjects.append(subject_id)
         anat_dir = subject_dir / "anat"
+
+        # Prepare FastSurfer-ready file     
+        t1_ready = anat_dir / f"{subject_id}_T1w.nii.gz"
+        if t1_ready.exists():
+            print(f"FastSurfer-ready file already exists: {t1_ready.name}")
+            continue
         
         # Look for T1w file
         t1_files = list(anat_dir.glob(f"{subject_id}_T1w.nii"))
         if not t1_files:
-            print(f"⚠ Skipping {subject_id}: No T1w scan found")
+            print(f"⚠ Skipping {subject_id}: No unzipped T1w scan found")
             continue
-        
+
         t1_file = t1_files[0]
 
         print(f"[{subject_id}]")
@@ -180,15 +148,9 @@ def preprocess_lab_data(input_dir, output_dir, freesurfer_license=None):
         img = nib.load(t1_file)
         header = img.header
         affine = img.affine
-        data = img.get_fdata()
         
         voxel_sizes = header.get_zooms()[:3]
-        dimensions = data.shape[:3]
         orientation = nib.aff2axcodes(affine)
-        
-        print(f"  Voxel size: {voxel_sizes[0]:.2f} x {voxel_sizes[1]:.2f} x {voxel_sizes[2]:.2f} mm")
-        print(f"  Matrix: {dimensions[0]} x {dimensions[1]} x {dimensions[2]}")
-        print(f"  Orientation: {orientation}")
         
         # Check if resolution is suitable for FastSurfer
         if max(voxel_sizes) > 1.5:
@@ -197,12 +159,6 @@ def preprocess_lab_data(input_dir, output_dir, freesurfer_license=None):
             print(f"  ℹ Very high resolution (will increase processing time)")
         else:
             print(f"  ✓ Resolution optimal for FastSurfer (0.7-1.5mm)")
-        
-        # Prepare FastSurfer-ready file
-        fastsurfer_dir = output_dir / subject_id
-        fastsurfer_dir.mkdir(exist_ok=True)
-        
-        t1_ready = fastsurfer_dir / "T1.nii.gz"
         
         # Reorient to RAS if needed
         if orientation != ('R', 'A', 'S'):
@@ -214,54 +170,31 @@ def preprocess_lab_data(input_dir, output_dir, freesurfer_license=None):
             print(f"  ✓ Already in RAS orientation")
             nib.save(img, t1_ready)
         
-        # Copy metadata
-        json_ready = fastsurfer_dir / "T1.json"
-        shutil.copy2(t1_file.with_suffix('.json'), json_ready)
-        
-        print(f"  ✓ Ready for FastSurfer: {t1_ready}")
-        
-        # Build command as list for direct execution
-        cmd_args = [
-            "/usr/local/FastSurfer/run_fastsurfer.sh",
-            "--t1", str(t1_ready),
-            "--sid", subject_id,
-            "--sd", str(output_dir / subject_id),
-            "--parallel",
-            "--threads", "8",
-            "--freesurfer-license", freesurfer_license
-        ]
-        print(f"  Running FastSurfer command: {' '.join(cmd_args)}")
-
-        try:
-            subprocess.run(cmd_args, check=True, capture_output=True, text=True)
-            print(f"  ✅ Successfully processed {subject_id}")
-            processing_status = "success"
-        except Exception as e:
-            print(f"  ❌ FastSurfer failed for {subject_id}: {e}")
-            processing_status = "failed"
-        
-        fastsurfer_ready[subject_id] = {
-            'T1_ready': str(t1_ready),
-            'command': ' '.join(cmd_args),
-            'output_dir': str(fastsurfer_dir),
-            'voxel_size': voxel_sizes,
-            'orientation_changed': orientation != ('R', 'A', 'S'),
-            'processing_status': processing_status
-        }
     
-    print("=" * 60)
-    print(f"✓ Processed {len(fastsurfer_ready)} subject(s) with FastSurfer")
-    print("=" * 60)
-    
-    # Print summary of processing results
-    success_count = sum(1 for s in fastsurfer_ready.values() if s.get('processing_status') == 'success')
-    failed_count = sum(1 for s in fastsurfer_ready.values() if s.get('processing_status') == 'failed')
-    skipped_count = sum(1 for s in fastsurfer_ready.values() if s.get('processing_status') == 'skipped')
-    
-    print(f"Results: {success_count} successful, {failed_count} failed, {skipped_count} skipped")
+    print(f"✓ {len(subjects)} subject(s) are ready for FastSurfer")
     print("")
     
-    return fastsurfer_ready
+    return subjects
+
+def preprocess_lab_data(input_dir: str = './lab_data',
+                        output_dir: str = './processed_data/adhd_lab',
+                        freesurfer_license: Optional[str] = None):
+    # Pre-processing step 1: Prepare data for FastSurfer
+    subjects = prepare_for_fastsurfer(
+        input_dir=input_dir
+    )
+
+    output_dir = os.path.abspath(output_dir)
+    
+    # Pre-processing step 2: Run FastSurfer via Docker
+    run_fastsurfer_docker(
+        subjects=subjects,
+        input_dir=input_dir,
+        output_dir=output_dir,
+        freesurfer_license=freesurfer_license,
+        n_threads=8
+    )
+
 
 # ----------------------------------------------------------------------
 # 3. Preprocessing function for OpenNeuro-Dataset - OUTSIDE DATASET

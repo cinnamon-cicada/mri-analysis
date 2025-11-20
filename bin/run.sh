@@ -129,10 +129,10 @@ ensure_adhd200() {
             print_error "Download script not found: $DOWNLOAD_SCRIPT"
             exit 1
         fi
-        
+
         # Make download script executable if needed
         chmod +x "$DOWNLOAD_SCRIPT"
-        
+
         # Run download script
         "$DOWNLOAD_SCRIPT" $TEST_MODE --adhd
         

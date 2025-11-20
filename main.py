@@ -21,38 +21,36 @@ def main(choice=[], subjects=None):
                 print("Performing Analysis 1...")
                 # Analyze ADHD-200 dataset
                 # Run FreeSurfer preprocessing
-                if not os.path.exists("./processed_data/adhd200"):
-                    os.makedirs("./processed_data/adhd200")
-                if not os.listdir("./processed_data/adhd200"):
-                    # Get the script directory to build absolute paths
-                    script_dir = os.path.dirname(os.path.abspath(__file__))
-                    license_path = os.path.join(script_dir, "license.txt")
+                script_dir = os.path.dirname(os.path.abspath(__file__))
+                license_path = os.path.join(script_dir, "license.txt")
 
+                # Run preprocessing if not already done
+                if not os.listdir("./processed_data/adhd200"):
                     preprocess_adhd200(
                         input_dir="./outside_data/adhd200",
                         output_dir="./processed_data/adhd200",
                         freesurfer_license=license_path
                     )
-
-                    preprocess_lab_data(
-                        input_dir="./organized_lab_data",
-                        output_dir="./processed_data/adhd_lab",
-                        freesurfer_license=license_path)
-                    
-                    run_adhd_analysis()
-
                 else:
-                    print("Processed data directory already exists. Skipping preprocessing.")
+                    print("Skipped ADHD-200 preprocessing.")
 
-                # Get subjects
-                subjects = [os.path.join("./processed_data/adhd200", dir) 
-                    for dir in os.listdir("./processed_data/adhd200")]
+                if not os.path.exists("./lab_data"):
+                    print("Lab data directory not found. Cannot run analysis.")
+                    sys.exit(1)
 
-                # Gather results
-                result = run_adhd_analysis(subjects)
+                if (not os.path.exists("./processed_data/adhd_lab") or 
+                        not os.listdir("./processed_data/adhd_lab")):
+                    preprocess_lab_data(
+                        input_dir="./lab_data",
+                        output_dir="./processed_data/adhd_lab",
+                        freesurfer_license=license_path
+                    )
+                else:
+                    print("Skipped lab data preprocessing.")
 
-                print("\nFinished analysis. Processing summary:")
-                print(json.dumps(result, indent=2))
+                # Run ADHD analysis
+                run_adhd_analysis()
+                print("\nFinished analysis!")
 
             elif analysis == "2":
                 # Exceptions Analysis

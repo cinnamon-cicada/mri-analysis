@@ -1,7 +1,7 @@
 lab_data/*
 outside_data/*
 processed_data/*
-organized_lab_data/*
+unorganized_lab_data/*
 venv/*
 .venv/*
 env/*
