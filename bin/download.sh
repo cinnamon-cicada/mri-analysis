@@ -1,16 +1,16 @@
 #!/bin/bash
 
 ###############################################################################
-# Dataset Download Script for ADHD-200 and OpenNeuro
+# Dataset Download Script for ADHD-200 and HCP-YA
 # Downloads neuroimaging datasets for comparison and analysis
 #
 # Usage:
-#   ./download_datasets.sh [--test] [--adhd] [--openneuro] [--all]
+#   ./download_datasets.sh [--test] [--adhd] [--hcp-ya] [--all]
 #   
 # Options:
 #   --test       Download only sample data (~50MB per dataset, 2-3 subjects)
 #   --adhd       Download only ADHD-200 dataset
-#   --openneuro  Download only OpenNeuro dataset
+#   --hcp-ya     Download only HCP-YA dataset
 #   --all        Download both datasets (default)
 #   --help       Show this help message
 ###############################################################################
@@ -27,7 +27,7 @@ NC='\033[0m' # No Color
 # Default settings
 TEST_MODE=false
 DOWNLOAD_ADHD=false
-DOWNLOAD_OPENNEURO=false
+DOWNLOAD_HCPYA=false
 BASE_DIR="./outside_data"
 
 # Parse command line arguments
@@ -41,13 +41,13 @@ while [[ $# -gt 0 ]]; do
             DOWNLOAD_ADHD=true
             shift
             ;;
-        --openneuro)
-            DOWNLOAD_OPENNEURO=true
+        --hcp-ya)
+            DOWNLOAD_HCPYA=true
             shift
             ;;
         --all)
             DOWNLOAD_ADHD=true
-            DOWNLOAD_OPENNEURO=true
+            DOWNLOAD_HCPYA=true
             shift
             ;;
         --help)
@@ -63,9 +63,9 @@ while [[ $# -gt 0 ]]; do
 done
 
 # If no specific dataset selected, download all
-if [ "$DOWNLOAD_ADHD" = false ] && [ "$DOWNLOAD_OPENNEURO" = false ]; then
+if [ "$DOWNLOAD_ADHD" = false ] && [ "$DOWNLOAD_HCPYA" = false ]; then
     DOWNLOAD_ADHD=true
-    DOWNLOAD_OPENNEURO=true
+    DOWNLOAD_HCPYA=true
 fi
 
 # Function to print colored messages
@@ -218,84 +218,25 @@ download_adhd200() {
     print_info "ADHD-200 dataset size: $size"
 }
 
-# Function to download OpenNeuro dataset
-download_openneuro() {
-    print_info "Downloading OpenNeuro dataset..."
+# Function to download HCP-YA dataset
+
+download_hcpya() {
+    print_info "Getting HCP-YA dataset..."
     
-    local OPENNEURO_DIR="$BASE_DIR/openneuro"
-    mkdir -p "$OPENNEURO_DIR"
+    local HCPYA_DIR="$BASE_DIR/hcp-ya"
+    mkdir -p "$HCPYA_DIR"
     
-    # We'll use a popular task fMRI dataset that matches your data type
-    # ds000109: False belief task fMRI study
-    local DATASET_ID="ds000109"
-    
-    if [ "$TEST_MODE" = true ]; then
-        print_info "TEST MODE: Downloading 2 subjects from OpenNeuro dataset $DATASET_ID..."
-        
-        # Download using OpenNeuro API
-        print_info "Downloading dataset descriptor..."
-        curl -o "$OPENNEURO_DIR/dataset_description.json" \
-            "https://openneuro.org/crn/datasets/$DATASET_ID/files/dataset_description.json" \
-            2>/dev/null
-        
-        # Download specific subjects (sub-01 - sub-05)
-        local test_subjects=("01" "02" "03" "04" "05")
-        
-        for subject in "${test_subjects[@]}"; do
-            print_info "Downloading subject sub-$subject..."
-            
-            local subject_dir="$OPENNEURO_DIR/sub-$subject"
-            mkdir -p "$subject_dir/anat"
-            mkdir -p "$subject_dir/func"
-            
-            # Download anatomical T1w
-            print_info "  Downloading anatomical scan..."
-            curl -f -o "$subject_dir/anat/sub-${subject}_T1w.nii.gz" \
-                "https://openneuro.org/crn/datasets/$DATASET_ID/files/sub-${subject}:anat:sub-${subject}_T1w.nii.gz" \
-                2>/dev/null || print_warning "Could not download T1w for sub-$subject"
-            
-            curl -f -o "$subject_dir/anat/sub-${subject}_T1w.json" \
-                "https://openneuro.org/crn/datasets/$DATASET_ID/files/sub-${subject}:anat:sub-${subject}_T1w.json" \
-                2>/dev/null
-            
-            # Download functional task runs (usually multiple runs)
-            for run in {1..2}; do
-                print_info "  Downloading functional run $run..."
-                curl -f -o "$subject_dir/func/sub-${subject}_task-theoryofmindwithplausibleevents_run-0${run}_bold.nii.gz" \
-                    "https://openneuro.org/crn/datasets/$DATASET_ID/files/sub-${subject}:func:sub-${subject}_task-theoryofmindwithplausibleevents_run-0${run}_bold.nii.gz" \
-                    2>/dev/null || print_warning "Could not download run $run for sub-$subject"
-                
-                curl -f -o "$subject_dir/func/sub-${subject}_task-theoryofmindwithplausibleevents_run-0${run}_bold.json" \
-                    "https://openneuro.org/crn/datasets/$DATASET_ID/files/sub-${subject}:func:sub-${subject}_task-theoryofmindwithplausibleevents_run-0${run}_bold.json" \
-                    2>/dev/null
-                
-                curl -f -o "$subject_dir/func/sub-${subject}_task-theoryofmindwithplausibleevents_run-0${run}_events.tsv" \
-                    "https://openneuro.org/crn/datasets/$DATASET_ID/files/sub-${subject}:func:sub-${subject}_task-theoryofmindwithplausibleevents_run-0${run}_events.tsv" \
-                    2>/dev/null
-            done
-        done
-        
-        print_success "OpenNeuro test dataset downloaded to $OPENNEURO_DIR"
-        
-    else
-        print_info "FULL MODE: Downloading complete OpenNeuro dataset $DATASET_ID..."
-        print_warning "This will download ~5-20GB depending on the dataset"
-        
-        # Install openneuro-cli if not present
-        if ! command -v openneuro &> /dev/null; then
-            print_info "Installing openneuro-cli..."
-            pip3 install openneuro-cli
-        fi
-        
-        # Download using openneuro-cli
-        openneuro download --dataset="$DATASET_ID" "$OPENNEURO_DIR"
-        
-        print_success "OpenNeuro full dataset downloaded to $OPENNEURO_DIR"
+    # Check if directory exists
+    if [ -d "$HCPYA_DIR" ]; then
+        # If the directory already exists, skip the download
+        print_warning "Directory '$HCPYA_DIR' already exists. Skipping download."
+        return 0
     fi
-    
-    # Calculate and display size
-    local size=$(du -sh "$OPENNEURO_DIR" 2>/dev/null | cut -f1)
-    print_info "OpenNeuro dataset size: $size"
+
+    # Download HCP-YA dataset from HCP-YA website
+    print_info "Downloading HCP-YA dataset from HCP-YA website..."
+    curl -o "$HCPYA_DIR/HCP_YA_81.csv" "https://www.humanconnectome.org/study/hcp-young-adult/document/hcp-young-adult-data-release"
+    print_success "HCP-YA dataset downloaded to $HCPYA_DIR"
 }
 
 # Function to create download summary
@@ -323,25 +264,15 @@ create_summary() {
             echo ""
         fi
         
-        if [ "$DOWNLOAD_OPENNEURO" = true ]; then
-            echo "OpenNeuro Dataset:"
-            echo "  Location: $BASE_DIR/openneuro"
-            if [ -d "$BASE_DIR/openneuro" ]; then
-                echo "  Size: $(du -sh "$BASE_DIR/openneuro" 2>/dev/null | cut -f1)"
-                echo "  Subjects: $(find "$BASE_DIR/openneuro" -mindepth 1 -maxdepth 1 -name "sub-*" -type d 2>/dev/null | wc -l)"
+        if [ "$DOWNLOAD_HCPYA" = true ]; then
+            echo "HCP-YA Dataset:"
+            echo "  Location: $BASE_DIR/hcp-ya"
+            if [ -d "$BASE_DIR/hcp-ya" ]; then
+                echo "  Size: $(du -sh "$BASE_DIR/hcp-ya" 2>/dev/null | cut -f1)"
+                echo "  Subjects: $(find "$BASE_DIR/hcp-ya" -mindepth 1 -maxdepth 1 -name "sub-*" -type d 2>/dev/null | wc -l)"
             fi
             echo ""
         fi
-        
-        echo "=========================================="
-        echo "Next Steps:"
-        echo "=========================================="
-        echo "1. Verify data integrity"
-        echo "2. Run preprocessing scripts:"
-        echo "   - For ADHD-200: preprocess_adhd200()"
-        echo "   - For OpenNeuro: preprocess_openneuro()"
-        echo "3. Compare datasets using standardized formats"
-        echo ""
         
     } > "$SUMMARY_FILE"
     
@@ -379,13 +310,14 @@ main() {
     mkdir -p "$BASE_DIR"
     
     # Download datasets
+    # TODO: Flesh the placeholder sections below.
     if [ "$DOWNLOAD_ADHD" = true ]; then
         download_adhd200
         echo ""
     fi
     
-    if [ "$DOWNLOAD_OPENNEURO" = true ]; then
-        download_openneuro
+    if [ "$DOWNLOAD_HCPYA" = true ]; then
+        download_hcpya
         echo ""
     fi
     

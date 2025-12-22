@@ -16,12 +16,12 @@ def run_adhd_analysis() -> None:
     lab_base = "./processed_data/adhd_lab/"
     outside_dirs = [os.path.join(outside_base, d) for d in os.listdir(outside_base)]
     lab_dirs = [os.path.join(lab_base, d) for d in os.listdir(lab_base)]
-    outside_data = get_adhd_summarized(
+    outside_data = get_comparison_results(
         subject_dirs=outside_dirs
     )
     print("\n\n************\n")
-    lab_data = get_adhd_summarized(
-        subject_dirs=lab_dirs # TODO: this directory empty
+    lab_data = get_comparison_results(
+        subject_dirs=lab_dirs
     )
 
     volume_percentiles = []
@@ -66,7 +66,7 @@ def run_adhd_analysis() -> None:
         json.dump(percentile_results, f, indent=2)
 
 
-def get_adhd_summarized(subject_dirs: list) -> Dict:
+def get_comparison_results(subject_dirs: list) -> Dict:
     """
     Aggregate volume and thickness measurements across multiple subjects,
     within one dataset.
@@ -143,8 +143,8 @@ def get_adhd_summarized(subject_dirs: list) -> Dict:
         return {'error': str(e)}
 
 
-def get_volume(data_path: str = './analysis/freesurfer_washu',
-    analysis: str = 'adhd'
+def get_volume(data_path: str,
+    analysis: str
 ) -> Dict:
     """
     Extract volume measurements for specific analyses.
@@ -275,9 +275,8 @@ def get_thickness(data_path: str, analysis: str = 'adhd') -> Dict:
 
 
 
-
-
-
 # ----------------------------------
 # Outlier Analysis Script
 # ----------------------------------
+
+# TODO: may delete

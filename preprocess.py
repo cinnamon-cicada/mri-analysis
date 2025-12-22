@@ -1,15 +1,10 @@
 import os
 import glob
-import json
-import shutil
-import nibabel as nib
-import numpy as np
 import pandas as pd
 from pathlib import Path
-import subprocess
-import re
 from typing import Dict, List, Optional
-from utils import run_fastsurfer_docker
+from utils import run_fastsurfer_docker, human_readable_cols
+import scipy.stats as stats
 
 # ----------------------------------------------------------------------
 # 1. Preprocessing for ADHD Analysis - OUTSIDE DATASET
@@ -66,375 +61,233 @@ def preprocess_adhd200(
         # Run FastSurfer Docker command
         run_fastsurfer_docker(subj, input_dir, output_dir, freesurfer_license, n_threads)
 
+
+
 # ----------------------------------------------------------------------
-# 2. Preprocessing function for ADHD-200 dataset - LAB DATASET
+# 2. Preprocessing function for HCP-YA - OUTSIDE DATASET
 # ----------------------------------------------------------------------
 
-def extract_subject_info(filename):
-    """
-    Extract subject ID and scan info from your filename format.
-    Example: SUBJECT_XXX.02.01.08-12-58.WIP_cs_2.8_T1W_3D_TFE.01.nii
-    Returns: (subject_id, series_num, scan_type)
-    """
-    parts = filename.split('.')
-    subject_id = parts[0]  # "SUBJECT_XXX"
-    series_num = parts[1]   # "02", "03", etc.
-    
-    # Extract scan type from middle part
-    scan_type = None
-    if "SURVEY" in filename:
-        scan_type = "localizer"
-    elif "T1W_3D_TFE" in filename:
-        scan_type = "T1w"
-    elif "fMRI_task" in filename:
-        scan_type = "func"
-    
-    return subject_id, series_num, scan_type
+"""
+FreeSurfer/FastSurfer preprocessing script for lab MRI data.
+Processes T1-weighted structural scans and extracts volumetric and cortical thickness measurements.
+"""
 
-def prepare_for_fastsurfer(input_dir):
-    """
-    Prepare organized T1w scans for FastSurfer processing.
+# TODO: Incorporate ADHD analysis into class below
+class FreeSurferExtractor:
+    """Extract measurements from FreeSurfer/FastSurfer output."""
     
-    - Reads from organized subject directories
-    - Checks orientation (converts to RAS if needed)
-    - Compresses to .nii.gz format
-    - Generates FastSurfer command scripts
-    
-    Parameters:
-    -----------
-    input_dir : str or Path
-        Directory containing organized subject folders (e.g., organized_lab_data/)
-    
-    Returns:
-    --------
-    dict : Dictionary with FastSurfer commands and ready files
-    """
-    input_dir = Path(input_dir)
-    
-    print("=" * 60)
-    print("Preparing zipped T1w scans for FastSurfer...")
-    print("=" * 60)
-    print(f"Input: {input_dir}")
-    print("")
-    
-    subjects = []
-    
-    # Scan input directory for subject folders
-    for subject_dir in sorted(input_dir.iterdir()):
-        if not subject_dir.is_dir():
-            continue
-        
-        subject_id = subject_dir.name
-        subjects.append(subject_id)
-        anat_dir = subject_dir / "anat"
+    def __init__(self, subjects_dir: str):
+        """
+        Initialize extractor.
 
-        # Prepare FastSurfer-ready file     
-        t1_ready = anat_dir / f"{subject_id}_T1w.nii.gz"
-        if t1_ready.exists():
-            print(f"FastSurfer-ready file already exists: {t1_ready.name}")
-            continue
+        Args:
+            subjects_dir: Directory containing FreeSurfer output
+        """
+        self.subjects_dir = Path(subjects_dir)
         
-        # Look for T1w file
-        t1_files = list(anat_dir.glob(f"{subject_id}_T1w.nii"))
-        if not t1_files:
-            print(f"⚠ Skipping {subject_id}: No unzipped T1w scan found")
-            continue
-
-        t1_file = t1_files[0]
-
-        print(f"[{subject_id}]")
+        # Define thickness regions to extract
+        self.thickness_regions = [
+            'caudalanteriorcingulate',
+            'caudalmiddlefrontal',
+            'cuneus',
+            'entorhinal',
+            'fusiform',
+            'inferiorparietal',
+            'inferiortemporal',
+            'isthmuscingulate',
+            'lateraloccipital',
+            'lateralorbitofrontal',
+            'lingual',
+            'medialorbitofrontal',
+            'middletemporal',
+            'parahippocampal',
+            'paracentral',
+            'pericalcarine',
+            'postcentral',
+            'posteriorcingulate',
+            'precentral',
+            'precuneus',
+            'rostralanteriorcingulate',
+            'rostralmiddlefrontal',
+            'superiorfrontal',
+            'superiorparietal',
+            'superiortemporal',
+            'supramarginal',
+            'insula'
+        ]
+    
+    def extract_aseg_stats(self, subject_id: str, subjects_path: str = None) -> Dict[str, float]:
+        """
+        Extract subcortical volumes from aseg.stats file.
         
-        # Load and check T1w scan
-        img = nib.load(t1_file)
-        header = img.header
-        affine = img.affine
-        
-        voxel_sizes = header.get_zooms()[:3]
-        orientation = nib.aff2axcodes(affine)
-        
-        # Check if resolution is suitable for FastSurfer
-        if max(voxel_sizes) > 1.5:
-            print(f"  ⚠ Warning: Voxel size > 1.5mm may reduce accuracy")
-        elif min(voxel_sizes) < 0.7:
-            print(f"  ℹ Very high resolution (will increase processing time)")
+        Args:
+            subject_id: Subject identifier
+            
+        Returns:
+            Dictionary of volume measurements
+        """
+        stats_file = None
+        if not subjects_path:
+            stats_file = self.subjects_dir / subject_id / 'stats' / 'aseg.stats'
         else:
-            print(f"  ✓ Resolution optimal for FastSurfer (0.7-1.5mm)")
+            stats_file = subjects_path / 'stats' / 'aseg.stats'
+        volumes = {}
         
-        # Reorient to RAS if needed
-        if orientation != ('R', 'A', 'S'):
-            print(f"  Reorienting from {orientation} to RAS...")
-            img_reoriented = nib.as_closest_canonical(img)
-            nib.save(img_reoriented, t1_ready)
-            print(f"  ✓ Reoriented and saved")
-        else:
-            print(f"  ✓ Already in RAS orientation")
-            nib.save(img, t1_ready)
+        if not stats_file.exists():
+            print(f"Warning: aseg.stats not found for {subject_id}")
+            return volumes
         
-    
-    print(f"✓ {len(subjects)} subject(s) are ready for FastSurfer")
-    print("")
-    
-    return subjects
-
-def preprocess_lab_data(input_dir: str = './lab_data',
-                        output_dir: str = './processed_data/adhd_lab',
-                        freesurfer_license: Optional[str] = None):
-    # Pre-processing step 1: Prepare data for FastSurfer
-    subjects = prepare_for_fastsurfer(
-        input_dir=input_dir
-    )
-
-    output_dir = os.path.abspath(output_dir)
-    
-    # Pre-processing step 2: Run FastSurfer via Docker
-    run_fastsurfer_docker(
-        subjects=subjects,
-        input_dir=input_dir,
-        output_dir=output_dir,
-        freesurfer_license=freesurfer_license,
-        n_threads=8
-    )
-
-
-# ----------------------------------------------------------------------
-# 3. Preprocessing function for OpenNeuro-Dataset - OUTSIDE DATASET
-# ----------------------------------------------------------------------
-
-def preprocess_openneuro(
-    input_dir,
-    output_dir,
-    subject_id,
-    session_id=None,
-    dataset_description=None
-):
-    """
-    Preprocess MRI data to match OpenNeuro BIDS format.
-    
-    Parameters:
-    -----------
-    input_dir : str or Path
-        Directory containing raw NIfTI files and JSON sidecars
-    output_dir : str or Path
-        Output directory for BIDS-formatted dataset
-    subject_id : str
-        Subject identifier (e.g., '001', 'patient01')
-    session_id : str, optional
-        Session identifier if multiple sessions (e.g., '01', 'baseline')
-    dataset_description : dict, optional
-        Metadata for dataset_description.json
-    
-    Returns:
-    --------
-    dict : Summary of processed files and their BIDS paths
-    """
-    
-    input_dir = Path(input_dir)
-    output_dir = Path(output_dir)
-    
-    # Create BIDS directory structure
-    subject_label = f"sub-{subject_id}"
-    if session_id:
-        session_label = f"ses-{session_id}"
-        subject_dir = output_dir / subject_label / session_label
-    else:
-        subject_dir = output_dir / subject_label
-    
-    anat_dir = subject_dir / "anat"
-    func_dir = subject_dir / "func"
-    
-    anat_dir.mkdir(parents=True, exist_ok=True)
-    func_dir.mkdir(parents=True, exist_ok=True)
-    
-    # Create dataset_description.json at root
-    if dataset_description is None:
-        dataset_description = {
-            "Name": "Custom fMRI Dataset",
-            "BIDSVersion": "1.9.0",
-            "DatasetType": "raw",
-            "Authors": ["Unknown"],
-            "License": "CC0"
+        # Mapping from FreeSurfer names to HCP column names
+        aseg_mapping = {
+            'EstimatedTotalIntraCranialVol': 'FS_IntraCranial_Vol',
+            'BrainSegVol': 'FS_BrainSeg_Vol',
+            'lhCortexVol': 'FS_LCort_GM_Vol',
+            'rhCortexVol': 'FS_RCort_GM_Vol',
+            'CortexVol': 'FS_TotCort_GM_Vol',
+            'SubCortGrayVol': 'FS_SubCort_GM_Vol',
+            'TotalGrayVol': 'FS_Total_GM_Vol',
+            'lhCerebralWhiteMatterVol': 'FS_L_WM_Vol',
+            'rhCerebralWhiteMatterVol': 'FS_R_WM_Vol',
+            'CerebralWhiteMatterVol': 'FS_Tot_WM_Vol',
+            'Left-Lateral-Ventricle': 'FS_L_LatVent_Vol',
+            'Left-Cerebellum-Cortex': 'FS_L_Cerebellum_Cort_Vol',
+            'Left-Thalamus-Proper': 'FS_L_ThalamusProper_Vol',
+            'Left-Caudate': 'FS_L_Caudate_Vol',
+            'Left-Putamen': 'FS_L_Putamen_Vol',
+            'Left-Pallidum': 'FS_L_Pallidum_Vol',
+            '3rd-Ventricle': 'FS_3rdVent_Vol',
+            '4th-Ventricle': 'FS_4thVent_Vol',
+            'Brain-Stem': 'FS_BrainStem_Vol',
+            'Left-Hippocampus': 'FS_L_Hippo_Vol',
+            'Left-Amygdala': 'FS_L_Amygdala_Vol',
+            'Left-Accumbens-area': 'FS_L_AccumbensArea_Vol',
+            'Right-Lateral-Ventricle': 'FS_R_LatVent_Vol',
+            'Right-Cerebellum-Cortex': 'FS_R_Cerebellum_Cort_Vol',
+            'Right-Thalamus-Proper': 'FS_R_ThalamusProper_Vol',
+            'Right-Caudate': 'FS_R_Caudate_Vol',
+            'Right-Putamen': 'FS_R_Putamen_Vol',
+            'Right-Pallidum': 'FS_R_Pallidum_Vol',
+            'Right-Hippocampus': 'FS_R_Hippo_Vol',
+            'Right-Amygdala': 'FS_R_Amygdala_Vol',
+            'Right-Accumbens-area': 'FS_R_AccumbensArea_Vol'
         }
+        
+        with open(stats_file, 'r') as f:
+            for line in f:
+                line = line.strip()
+                
+                # Parse measure lines
+                if line.startswith('# Measure'):
+                    parts = line.split(',')
+                    if len(parts) >= 4:
+                        measure_name = parts[1].strip()
+                        value = float(parts[3].strip())
+                        
+                        if measure_name in aseg_mapping:
+                            volumes[aseg_mapping[measure_name]] = value
+                
+                # Parse structure lines
+                elif not line.startswith('#') and line:
+                    parts = line.split()
+                    if len(parts) >= 5:
+                        struct_name = parts[4]
+                        volume = float(parts[3])
+                        
+                        if struct_name in aseg_mapping:
+                            volumes[aseg_mapping[struct_name]] = volume
+        
+        return volumes
     
-    with open(output_dir / "dataset_description.json", 'w') as f:
-        json.dump(dataset_description, f, indent=4)
-    
-    # Track processed files
-    processed_files = {
-        "anatomical": [],
-        "functional": [],
-        "localizer": []
-    }
-    
-    # Process all JSON files in input directory
-    for json_file in input_dir.glob("*.json"):
-        with open(json_file, 'r') as f:
-            metadata = json.load(f)
+    def extract_aparc_stats(self, subject_id: str, hemisphere: str, subjects_path: str = None) -> Dict[str, float]:
+        """
+        Extract cortical thickness from aparc.stats files.
         
-        # Find corresponding NIfTI file
-        nifti_file = json_file.with_suffix('.nii.gz')
-        if not nifti_file.exists():
-            nifti_file = json_file.with_suffix('.nii')
-        
-        if not nifti_file.exists():
-            print(f"Warning: No NIfTI file found for {json_file}")
-            continue
-        
-        # Determine file type and create BIDS filename
-        series_desc = metadata.get("SeriesDescription", "")
-        series_num = metadata.get("SeriesNumber", 0)
-        
-        # Build BIDS filename components
-        base_name = subject_label
-        if session_id:
-            base_name += f"_{session_label}"
-        
-        # Classify and rename based on series description
-        if "SURVEY" in series_desc.upper() or series_num == 101:
-            # Localizer - store but not typically used in analysis
-            bids_name = f"{base_name}_acq-localizer_T1w"
-            target_dir = anat_dir
-            file_type = "localizer"
+        Args:
+            subject_id: Subject identifier
+            hemisphere: 'lh' or 'rh'
             
-        elif "T1W" in series_desc.upper() or "T1TFE" in metadata.get("PulseSequenceName", ""):
-            # T1-weighted anatomical
-            bids_name = f"{base_name}_T1w"
-            target_dir = anat_dir
-            file_type = "anatomical"
-            
-        elif "fMRI" in series_desc or "FEEPI" in metadata.get("PulseSequenceName", ""):
-            # Functional MRI - determine run number
-            if series_num == 301:
-                run_num = 1
-            elif series_num == 501:
-                run_num = 2
-            elif series_num == 601:
-                run_num = 3
-            else:
-                run_num = (series_num // 100)
-            
-            # Extract task name from protocol
-            task_name = "task"  # default
-            if "task" in series_desc.lower():
-                task_name = series_desc.split("task")[1].split("_")[0] if "_" in series_desc else "task"
-            
-            bids_name = f"{base_name}_task-{task_name}_run-{run_num:02d}_bold"
-            target_dir = func_dir
-            file_type = "functional"
-        
+        Returns:
+            Dictionary of thickness measurements
+        """
+        stats_file = None
+        if not subjects_path:
+            stats_file = self.subjects_dir / subject_id / 'stats' / f'{hemisphere}.aparc.stats'
         else:
-            print(f"Warning: Unknown series type: {series_desc}")
-            continue
+            stats_file = subjects_path / 'stats' / f'{hemisphere}.aparc.stats'
+        thickness = {}
         
-        # Copy and rename NIfTI file
-        target_nifti = target_dir / f"{bids_name}.nii.gz"
-        shutil.copy2(nifti_file, target_nifti)
+        if not stats_file.exists():
+            print(f"Warning: {hemisphere}.aparc.stats not found for {subject_id}")
+            return thickness
         
-        # Create BIDS-compliant JSON sidecar
-        bids_json = _create_bids_json(metadata)
-        target_json = target_dir / f"{bids_name}.json"
+        prefix = 'FS_L_' if hemisphere == 'lh' else 'FS_R_'
         
-        with open(target_json, 'w') as f:
-            json.dump(bids_json, f, indent=4)
+        with open(stats_file, 'r') as f:
+            for line in f:
+                if line.startswith('#') or not line.strip():
+                    continue
+                
+                parts = line.split()
+                if len(parts) >= 5:
+                    region_name = parts[0]
+                    thick_mean = float(parts[4])
+                    
+                    # Check if this region is in our list
+                    for region in self.thickness_regions:
+                        if region_name == region:
+                            col_name = f"{prefix}{region.capitalize()}_Thck"
+                            thickness[col_name] = thick_mean
+                            break
         
-        # Track processed file
-        processed_files[file_type].append({
-            "original": str(json_file.name),
-            "bids_path": str(target_nifti.relative_to(output_dir)),
-            "series_number": series_num
-        })
-        
-        print(f"Processed: {json_file.name} -> {target_nifti.relative_to(output_dir)}")
+        return thickness
     
-    # Create participants.tsv
-    _create_participants_file(output_dir, subject_id)
+    def extract_all_measurements(self, subject_id: str, subject_path = None) -> Dict[str, float]:
+        """
+        Extract all measurements for a subject.
+        
+        Args:
+            subject_id: Subject identifier
+            
+        Returns:
+            Dictionary with all measurements
+        """
+        measurements = {'Subject': subject_id}
+        
+        # Extract volumes
+        volumes = self.extract_aseg_stats(subject_id, subject_path)
+        measurements.update(volumes)
+        
+        # Extract thickness for both hemispheres
+        lh_thickness = self.extract_aparc_stats(subject_id, 'lh', subject_path)
+        measurements.update(lh_thickness)
+        
+        rh_thickness = self.extract_aparc_stats(subject_id, 'rh', subject_path)
+        measurements.update(rh_thickness)
+        
+        return measurements
     
-    # Create task events files for functional runs (templates)
-    for func_file in processed_files["functional"]:
-        _create_events_template(
-            output_dir,
-            Path(func_file["bids_path"]).with_suffix('.tsv')
+    def get_comparison_results(self):
+        # Get measurements for self-subject
+        lab_data = self.extract_all_measurements("Karas_262199")
+
+        # TODO: Change. Currently assumes CSV output format
+        ref_df = pd.read_csv("./outside_data/hcp-ya/HCP_YA_81.csv").drop(
+            columns=['Subject', 'Release', 'Acquisition', 'Gender', 'Age',
+                    '3T_Full_MR_Compl', '7T_Full_MR_Compl', 'MEG_FullProt_Compl']
         )
-    
-    print(f"\nBIDS dataset created at: {output_dir}")
-    print(f"Processed {len(processed_files['anatomical'])} anatomical, "
-          f"{len(processed_files['functional'])} functional, "
-          f"{len(processed_files['localizer'])} localizer scans")
-    
-    return processed_files
 
+        # For each subject, get percentile
+        z_scores = {'volume_percentiles': [], 'thickness_percentiles': []}
 
-def _create_bids_json(philips_metadata):
-    """Convert Philips JSON to BIDS-compliant JSON."""
-    
-    bids_json = {
-        "Manufacturer": philips_metadata.get("Manufacturer"),
-        "ManufacturersModelName": philips_metadata.get("ManufacturersModelName"),
-        "MagneticFieldStrength": philips_metadata.get("MagneticFieldStrength"),
-        "RepetitionTime": philips_metadata.get("RepetitionTime"),
-        "EchoTime": philips_metadata.get("EchoTime"),
-        "FlipAngle": philips_metadata.get("FlipAngle"),
-        "SliceThickness": philips_metadata.get("SliceThickness"),
-        "PhaseEncodingDirection": _get_phase_encoding_direction(philips_metadata),
-        "EffectiveEchoSpacing": philips_metadata.get("EstimatedEffectiveEchoSpacing"),
-        "TotalReadoutTime": philips_metadata.get("EstimatedTotalReadoutTime"),
-    }
-    
-    # Add functional-specific fields
-    if "FEEPI" in philips_metadata.get("PulseSequenceName", ""):
-        bids_json.update({
-            "TaskName": "task",  # Should be updated based on actual task
-            "MultibandAccelerationFactor": philips_metadata.get("ParallelReductionFactorOutOfPlane"),
-            "ParallelReductionFactorInPlane": philips_metadata.get("ParallelReductionFactorInPlane"),
-        })
-    
-    # Remove None values
-    bids_json = {k: v for k, v in bids_json.items() if v is not None}
-    
-    return bids_json
+        for part in ref_df.columns:
+            mean = ref_df[part].mean()
+            std = ref_df[part].std()
+            z_score = (lab_data[part] - mean) / std
+            percentile = stats.norm.cdf(z_score)
 
+            if '_Vol' in part:
+                z_scores['volume_percentiles'].append([human_readable_cols[part], percentile])
+            elif '_Thck' in part:
+                z_scores['thickness_percentiles'].append([human_readable_cols[part], percentile])
 
-def _get_phase_encoding_direction(metadata):
-    """Determine BIDS phase encoding direction from Philips metadata."""
-    
-    pe_axis = metadata.get("PhaseEncodingAxis", "")
-    in_plane_dir = metadata.get("InPlanePhaseEncodingDirectionDICOM", "")
-    
-    # Map Philips encoding to BIDS
-    if pe_axis == "j" or in_plane_dir == "COL":
-        return "j"  # or "j-" depending on polarity
-    elif pe_axis == "i" or in_plane_dir == "ROW":
-        return "i"  # or "i-" depending on polarity
-    
-    return None
-
-
-def _create_participants_file(output_dir, subject_id):
-    """Create participants.tsv file."""
-    
-    participants_file = output_dir / "participants.tsv"
-    
-    if not participants_file.exists():
-        with open(participants_file, 'w') as f:
-            f.write("participant_id\n")
-    
-    # Append subject if not already present
-    with open(participants_file, 'r') as f:
-        existing = f.read()
-    
-    participant_label = f"sub-{subject_id}"
-    if participant_label not in existing:
-        with open(participants_file, 'a') as f:
-            f.write(f"{participant_label}\n")
-
-
-def _create_events_template(output_dir, events_path):
-    """Create template events.tsv file for task fMRI."""
-    
-    events_file = output_dir / events_path
-    
-    with open(events_file, 'w') as f:
-        f.write("onset\tduration\ttrial_type\n")
-        f.write("# Add your task events here\n")
-        f.write("# onset: time in seconds from start of acquisition\n")
-        f.write("# duration: duration in seconds\n")
-        f.write("# trial_type: condition/stimulus type\n")
+        return z_scores

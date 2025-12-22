@@ -2,7 +2,7 @@
 
 ## Description
 
-Fun analysis on my brain. Feel free to check it out!
+An analysis on my brain. Maybe one day, it'll be an app. Feel free to check it out!
 
 ## Dataset
 
@@ -28,14 +28,14 @@ The `Data/` directory contains the following MRI sequences:
 ### Data Specifications
 
 - **Subject ID**: cinnamon-cicada
-- **Scanner**: Philips (inferred from file naming convention)
+- **Scanner**: Philips
 - **Functional runs**: 3 task-based fMRI sessions
 - **Repetition Time (TR)**: 1000ms for fMRI sequences
 - **File naming**: BIDS-compatible structure with timestamp information
 
 ### Outside Data Sources
 - ADHD-200: http://fcon_1000.projects.nitrc.org/indi/adhd200/
-- OpenNeuro
+- HCP-YA subset: young adult Americans, female
 
 ### Pre-Processed Datasets
 - The ADHD200/WashU preprocessed dataset was downloaded at this link (9GB): https://www.nitrc.org/frs/downloadlink.php/3270
@@ -48,9 +48,7 @@ The `Data/` directory contains the following MRI sequences:
 - [Installation](#installation)
 - [Usage](#usage)
 - [Built With](#built-with)
-- [License](#license)
 - [Acknowledgments](#acknowledgments)
-- [Changelog](#changelog)
 - [Roadmap](#roadmap)
 
 ## Features
@@ -65,11 +63,7 @@ The `Data/` directory contains the following MRI sequences:
 
 ### Prerequisites
 ```bash
-# Example prerequisites
-python >= 3.8
-pip
-git
-docker
+pip install -r requirements.txt
 ```
 
 ### FreeSurfer Setup (via Docker)
@@ -122,15 +116,6 @@ mkdir -p ~/.freesurfer
 mv license.txt ~/.freesurfer/
 ```
 
-#### 4. Test FreeSurfer Installation
-```bash
-# Test FreeSurfer with Docker (replace with your license path)
-docker run --rm \
-  -v /path/to/license.txt:/opt/freesurfer/license.txt:ro \
-  freesurfer/freesurfer:7.4.1 \
-  recon-all --version
-```
-
 ### Quick Start
 ```bash
 # Clone the repository
@@ -147,35 +132,25 @@ python main.py
 ```
 
 ## Usage
-
-### Basic Usage
-```python
-# Basic usage example
-from mri_scan import MRIProcessor
-
-processor = MRIProcessor()
-result = processor.process_scan("path/to/scan.nii")
-print(f"Processing complete: {result}")
-```
-
-### FreeSurfer Processing
-```python
-# Run FreeSurfer analysis on ADHD-200 dataset
-from preprocessing import preprocess_adhd200
-
-preprocess_adhd200(
-    input_dir='./outside_data/adhd200',
-    output_dir='./processed_data/adhd200',
-    freesurfer_license='./license.txt',  # Path to your license file
-    n_threads=4
-)
-```
-
-### Command Line Interface
+// WIP
 ```bash
-# Command line usage examples
-mri_scan --input data/scan.nii --output results/
-mri_scan --help
+Usage:
+  ./run.sh [OPTIONS] [ANALYSIS_NUMBERS...]
+
+Options:
+  --test       Run in test mode (downloads sample data if needed)
+  --help       Show this help message
+
+Analysis Numbers:
+  1            Run ADHD analysis (uses ADHD-200 dataset)
+  2            Run uniqueness analysis (uses HCP-YA dataset)
+  3            Reserved for future use
+
+Examples:
+  ./run.sh 1              # Run analysis 1, download ADHD-200 if needed
+  ./run.sh --test 1 2     # Run analyses 1 and 2 in test mode
+  ./run.sh 2 1            # Run analysis 2 then analysis 1
+  ./run.sh 1 1 2          # Run analysis 1 twice, then analysis 2
 ```
 
 ## Built With
@@ -198,22 +173,6 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - ADHD200 Dataset ()
 - OpenNeuro Dataset ()
 - FreeSurfer Development Team
-
-## Changelog
-
-### [1.0.0] - 2025-10-30
-- Initial release
-- Basic MRI scan processing functionality
-- Support for NIfTI file format
-
-### [0.2.0] - 2025-10-15
-- Added batch processing
-- Improved error handling
-- Added configuration file support
-
-### [0.1.0] - 2025-10-01
-- Initial development version
-- Basic file loading capabilities
 
 ## Roadmap
 

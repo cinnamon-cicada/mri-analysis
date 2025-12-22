@@ -1,12 +1,13 @@
 import os
 import sys
-import json
 from analysis import run_adhd_analysis
-from preprocess import preprocess_adhd200, preprocess_lab_data
+from preprocess import preprocess_adhd200, FreeSurferExtractor
+from utils import preprocess_lab_data
 
 def main(choice=[], subjects=None):
     # Pre-process data in general
-    print("Hello, World!")
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    license_path = os.path.join(script_dir, "license.txt")
 
     # Perform different analyses based on the input argument
     if not choice:
@@ -20,10 +21,6 @@ def main(choice=[], subjects=None):
                 # ADHD Analysis
                 print("Performing Analysis 1...")
                 # Analyze ADHD-200 dataset
-                # Run FreeSurfer preprocessing
-                script_dir = os.path.dirname(os.path.abspath(__file__))
-                license_path = os.path.join(script_dir, "license.txt")
-
                 # Run preprocessing if not already done
                 if not os.listdir("./processed_data/adhd200"):
                     preprocess_adhd200(
@@ -55,7 +52,27 @@ def main(choice=[], subjects=None):
             elif analysis == "2":
                 # Exceptions Analysis
                 print("Performing Analysis 2.")
-                # Analysis 2 code here
+
+                # Preprocess data if needed
+                if not os.path.exists("./processed_data/outlier_lab"):
+                    preprocess_lab_data(
+                        input_dir="./lab_data",
+                        output_dir="./processed_data/outlier_lab",
+                        freesurfer_license=license_path
+                    )
+                else:
+                    print("Skipped outlier lab data preprocessing.")
+
+                # Assume reference data is in ./outside_data/hcp-ya/HCP_YA_81.csv
+                
+                # Use extractor to get comparison results
+                extractor = FreeSurferExtractor(subjects_dir="./processed_data/outlier_lab")
+                percentiles = extractor.get_comparison_results()
+
+                # Save percentiles to JSON file
+                with open("./analysis/outlier_analysis_results.json", "w") as f:
+                    json.dump(percentiles, f)
+
             else:
                 print(f"Analysis {analysis} is not recognized.")
 

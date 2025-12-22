@@ -5,16 +5,16 @@
 #
 # Usage:
 #   ./run.sh [OPTIONS] [ANALYSIS_NUMBERS...]
-#
+
 # Options:
 #   --test       Run in test mode (downloads sample data if needed)
 #   --help       Show this help message
-#
+
 # Analysis Numbers:
 #   1            Run ADHD analysis (uses ADHD-200 dataset)
-#   2            Run uniqueness analysis (uses OpenNeuro dataset)
+#   2            Run uniqueness analysis (uses HCP-YA dataset)
 #   3            Reserved for future use
-#
+
 # Examples:
 #   ./run.sh 1              # Run analysis 1, download ADHD-200 if needed
 #   ./run.sh --test 1 2     # Run analyses 1 and 2 in test mode
@@ -147,13 +147,13 @@ ensure_adhd200() {
     fi
 }
 
-# Download OpenNeuro dataset if needed
-ensure_openneuro() {
-    local openneuro_dir="$DATA_DIR/openneuro"
+# Download HCP-YA dataset if needed
+ensure_hcpya() {
+    local hcpya_dir="$DATA_DIR/hcp-ya"
     
-    if is_directory_empty "$openneuro_dir"; then
-        print_info "OpenNeuro dataset not found or empty"
-        print_info "Downloading OpenNeuro dataset..."
+    if is_directory_empty "$hcpya_dir"; then
+        print_info "HCP-YA dataset not found or empty"
+        print_info "Downloading HCP-YA dataset..."
         
         if [ ! -f "$DOWNLOAD_SCRIPT" ]; then
             print_error "Download script not found: $DOWNLOAD_SCRIPT"
@@ -164,16 +164,16 @@ ensure_openneuro() {
         chmod +x "$DOWNLOAD_SCRIPT"
         
         # Run download script
-        "$DOWNLOAD_SCRIPT" $TEST_MODE --openneuro
+        "$DOWNLOAD_SCRIPT" $TEST_MODE --hcp-ya
         
         if [ $? -ne 0 ]; then
-            print_error "Failed to download OpenNeuro dataset"
+            print_error "Failed to download HCP-YA dataset"
             exit 1
         fi
         
-        print_success "OpenNeuro dataset downloaded"
+        print_success "HCP-YA dataset downloaded"
     else
-        print_info "OpenNeuro dataset found at $openneuro_dir"
+        print_info "HCP-YA dataset found at $hcpya_dir"
     fi
 }
 
@@ -182,7 +182,7 @@ prepare_datasets() {
     print_info "Determining required datasets..."
     
     local needs_adhd=false
-    local needs_openneuro=false
+    local needs_hcpya=false
     
     # Check which datasets are needed based on analysis numbers
     for analysis_num in "${ANALYSIS_NUMBERS[@]}"; do
@@ -191,14 +191,14 @@ prepare_datasets() {
                 needs_adhd=true
                 ;;
             2)
-                needs_openneuro=true
+                needs_hcpya=true
                 ;;
             3)
                 print_warning "Analysis 3 is reserved for future use"
                 ;;
             *)
                 print_error "Invalid analysis number: $analysis_num"
-                print_error "Valid options are: 1 (ADHD analysis), 2 (OpenNeuro analysis), 3 (reserved)"
+                print_error "Valid options are: 1 (ADHD analysis), 2 (HCP-YA analysis), 3 (reserved)"
                 exit 1
                 ;;
         esac
@@ -210,9 +210,9 @@ prepare_datasets() {
         ensure_adhd200
     fi
     
-    if [ "$needs_openneuro" = true ]; then
-        print_info "Analysis 2 requires OpenNeuro dataset"
-        ensure_openneuro
+    if [ "$needs_hcpya" = true ]; then
+        print_info "Analysis 2 requires HCP-YA dataset"
+        ensure_hcpya
     fi
     
     print_success "All required datasets are ready"
@@ -283,7 +283,7 @@ main() {
             local analysis_num="${ANALYSIS_NUMBERS[$i]}"
             case $analysis_num in
                 1) echo "  Index $i: Analysis $analysis_num (ADHD-200 dataset)" ;;
-                2) echo "  Index $i: Analysis $analysis_num (OpenNeuro dataset)" ;;
+                2) echo "  Index $i: Analysis $analysis_num (HCP-YA dataset)" ;;
                 3) echo "  Index $i: Analysis $analysis_num (Reserved)" ;;
                 *) echo "  Index $i: Analysis $analysis_num (Unknown)" ;;
             esac
