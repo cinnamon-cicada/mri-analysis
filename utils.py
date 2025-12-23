@@ -136,12 +136,8 @@ def run_fastsurfer_docker(subjects: list,
     print("Running FastSurfer with Docker")
     print("=" * 60)
     print("")
-    
-    results = {}
 
-    for subject_id in subjects:
-        print(f"[{subject_id}]")
-        
+    for subject_id in subjects:        
         # Get T1 file path relative to input_dir
         subj_dir = input_dir / subject_id
         
@@ -151,7 +147,6 @@ def run_fastsurfer_docker(subjects: list,
         
         if not t1_files:
             print(f"  ✗ T1w file not found in {anat_dir}")
-            results[subject_id] = {'status': 'failed', 'error': 'T1w file not found'}
             continue
 
         t1_filename = t1_files[0].name
@@ -190,26 +185,47 @@ def run_fastsurfer_docker(subjects: list,
 
             print(f"  ✓ FastSurfer completed successfully!")
 
-            results[subject_id] = {
-                'status': 'success',
-                'output_dir': str(output_dir / subject_id)
-            }
-            
         except Exception as e:
             print(f"  ✗ FastSurfer failed: {str(e)}")
-            results[subject_id] = {'status': 'failed', 'error': str(e)}
         
         print("")
 
     print(f"FastSurfer processing complete")
     print("=" * 60)
-    
-    # Summary
-    success_count = sum(1 for r in results.values() if r['status'] == 'success')
-    print(f"Successful: {success_count}/{len(results)}")
-    print("")
-    
-    return results
+
+
+# Post-FastSurfer step to add .aparc.stats files
+def run_freesurfer(subjects: list,
+                   output_dir: str, 
+                   freesurfer_license: str):
+    uid = str(os.getuid())
+    gid = str(os.getgid())
+    for subject_id in subjects:
+        parcstats_cmd = [
+            "docker", "run", "--rm",
+            "-u", f"{uid}:{gid}",
+            "-e", "HOME=/tmp",
+            "-e", "FS_LICENSE=/opt/freesurfer/license.txt",
+            "-e", "SUBJECTS_DIR=/processed_data/{subject_id}",
+            "-v", f"{output_dir}:/subjects",
+            "-v", f"{freesurfer_license}:/opt/freesurfer/license.txt:ro",
+            "deepmi/fastsurfer:latest",
+            "recon-all",
+            "-s", subject_id,
+            "-parcstats",
+        ]
+
+    try:
+        subprocess.run(
+            parcstats_cmd,
+            check=True,
+            capture_output=True,
+            text=True
+        )
+
+    except Exception as e:
+        print(f"  ✗ FreeSurfer failed: {str(e)}")
+
 
 def prepare_for_fastsurfer(input_dir):
     """
@@ -299,15 +315,16 @@ def prepare_for_fastsurfer(input_dir):
 
 def preprocess_lab_data(input_dir: str = './lab_data',
                         output_dir: str = './processed_data/adhd_lab',
-                        freesurfer_license: Optional[str] = None):
-    # Pre-processing step 1: Prepare data for FastSurfer
+                        freesurfer_license: Optional[str] = None,
+                        run_step_3: bool = False):
+    # Step 1: Prepare data for FastSurfer
     subjects = prepare_for_fastsurfer(
         input_dir=input_dir
     )
 
     output_dir = os.path.abspath(output_dir)
     
-    # Pre-processing step 2: Run FastSurfer via Docker
+    # Step 2: Run FastSurfer via Docker
     run_fastsurfer_docker(
         subjects=subjects,
         input_dir=input_dir,
@@ -315,4 +332,12 @@ def preprocess_lab_data(input_dir: str = './lab_data',
         freesurfer_license=freesurfer_license,
         n_threads=8
     )
+
+    # Step 3: Run FreeSurfer to add .aparc.stats files (optional)
+    if run_step_3:
+        run_freesurfer(subjects=subjects,
+        output_dir=output_dir,
+        freesurfer_license=freesurfer_license)
+
+
 

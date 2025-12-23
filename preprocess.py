@@ -279,6 +279,9 @@ class FreeSurferExtractor:
         # For each subject, get percentile
         z_scores = {'volume_percentiles': [], 'thickness_percentiles': []}
 
+        # delete
+        print('******\n', lab_data.keys(), '\n\n', ref_df.columns)
+
         for part in ref_df.columns:
             mean = ref_df[part].mean()
             std = ref_df[part].std()
