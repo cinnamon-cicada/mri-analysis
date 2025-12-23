@@ -44,20 +44,22 @@ The `Data/` directory contains the following MRI sequences:
 ## Table of Contents
 
 - [Dataset](#dataset)
-- [Features](#features)
+- [Pipeline](#pipeline)
 - [Installation](#installation)
 - [Usage](#usage)
 - [Built With](#built-with)
+- [License](#license)
 - [Acknowledgments](#acknowledgments)
 - [Roadmap](#roadmap)
 
-## Features
+## Pipeline
 
-- Feature 1: Description of key feature
-- Feature 2: Description of another feature
-- Feature 3: Description of additional functionality
-- Cross-platform compatibility
-- Easy to use interface
+1. MRI inputs: `./outside_data/[analysis name]`, `./lab_data/[analysis name]`
+  1. Each should be organized by subject, with two subdirectories: `anat`, `func`
+2. Process using Fastsurfer: `preprocess.py` -> `./processed_data/[analysis name]`
+3. Collect final statistics and report: `analysis.py` -> `analysis/[analysis name].json`
+
+Note: For Analysis 2 (outliers), preprocess.py currently contains ALL steps of the process. This will be corrected later.
 
 ## Installation
 
