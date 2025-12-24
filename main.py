@@ -3,6 +3,7 @@ import sys
 from analysis import run_adhd_analysis
 from preprocess import preprocess_adhd200, FreeSurferExtractor
 from utils import preprocess_lab_data
+import json
 
 def main(choice=[], subjects=None):
     # Pre-process data in general
@@ -58,7 +59,8 @@ def main(choice=[], subjects=None):
                     preprocess_lab_data(
                         input_dir="./lab_data",
                         output_dir="./processed_data/outlier_lab",
-                        freesurfer_license=license_path
+                        freesurfer_license=license_path,
+                        run_step_3=True
                     )
                 else:
                     print("Skipped outlier lab data preprocessing.")
@@ -68,10 +70,11 @@ def main(choice=[], subjects=None):
                 # Use extractor to get comparison results
                 extractor = FreeSurferExtractor(subjects_dir="./processed_data/outlier_lab")
                 percentiles = extractor.get_comparison_results()
+                percentiles["thickness_percentiles"].sort(key=lambda x: x[1])
 
                 # Save percentiles to JSON file
                 with open("./analysis/outlier_analysis_results.json", "w") as f:
-                    json.dump(percentiles, f)
+                    json.dump(percentiles, f, indent=4, sort_keys=True)
 
             else:
                 print(f"Analysis {analysis} is not recognized.")

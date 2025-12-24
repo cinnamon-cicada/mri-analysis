@@ -1,0 +1,342 @@
+{
+    "thickness_percentiles": [
+        [
+            "FS Left Pericalcarine",
+            3.212830078798602e-06
+        ],
+        [
+            "FS Right Pericalcarine",
+            0.00034333631155650083
+        ],
+        [
+            "FS Right Medial Orbitofrontal",
+            0.0005635112115323936
+        ],
+        [
+            "FS Right Inferior Parietal",
+            0.0042371264148756554
+        ],
+        [
+            "FS Right Supramarginal",
+            0.010662968237773723
+        ],
+        [
+            "FS Left Middle Temporal",
+            0.01693795492396876
+        ],
+        [
+            "FS Right Middle Temporal",
+            0.02302143986193237
+        ],
+        [
+            "FS Left Lateral Orbitofrontal",
+            0.0255715139365015
+        ],
+        [
+            "FS Right Fusiform",
+            0.03107642967016772
+        ],
+        [
+            "FS Left Fusiform",
+            0.03265412323150999
+        ],
+        [
+            "FS Right Caudal Middle Frontal",
+            0.034158036504670475
+        ],
+        [
+            "FS Left Precuneus",
+            0.035337383317695585
+        ],
+        [
+            "FS Right Precentral",
+            0.03982162816430528
+        ],
+        [
+            "FS Left Rostral Anterior Cingulate",
+            0.046214067235508104
+        ],
+        [
+            "FS Right Precuneus",
+            0.04702552529440949
+        ],
+        [
+            "FS Right Lateral Orbitofrontal",
+            0.0534443315994901
+        ],
+        [
+            "FS Right Inferior Temporal",
+            0.055587737567683614
+        ],
+        [
+            "FS Right Isthmus Cingulate",
+            0.06665637514223238
+        ],
+        [
+            "FS Left Inferior Temporal",
+            0.06959431165929349
+        ],
+        [
+            "FS Right Lateral Occipital",
+            0.07054304819274679
+        ],
+        [
+            "FS Right Rostral Anterior Cingulate",
+            0.07291904797254257
+        ],
+        [
+            "FS Right Paracentral",
+            0.08424517167579959
+        ],
+        [
+            "FS Left Inferior Parietal",
+            0.08971686879323854
+        ],
+        [
+            "FS Left Lateral Occipital",
+            0.09238391851747257
+        ],
+        [
+            "FS Left Precentral",
+            0.09360651045281815
+        ],
+        [
+            "FS Right Postcentral",
+            0.10725775920695746
+        ],
+        [
+            "FS Left Supramarginal",
+            0.1226007100858702
+        ],
+        [
+            "FS Left Cuneus",
+            0.12527430349803936
+        ],
+        [
+            "FS Left Lingual",
+            0.13133809131156043
+        ],
+        [
+            "FS Right Rostral Middle Frontal",
+            0.14452841335634997
+        ],
+        [
+            "FS Left Medial Orbitofrontal",
+            0.14683351756443536
+        ],
+        [
+            "FS Left Postcentral",
+            0.16810089552793245
+        ],
+        [
+            "FS Right Superior Parietal",
+            0.17816431196887478
+        ],
+        [
+            "FS Left Superior Temporal",
+            0.18506354520968815
+        ],
+        [
+            "FS Left Caudal Middle Frontal",
+            0.19649235877129495
+        ],
+        [
+            "FS Right Superior Temporal",
+            0.27299360595854527
+        ],
+        [
+            "FS Left Caudal Anterior Cingulate",
+            0.3250568472328691
+        ],
+        [
+            "FS Left Isthmus Cingulate",
+            0.3857106700527761
+        ],
+        [
+            "FS Left Rostral Middle Frontal",
+            0.39865507733581224
+        ],
+        [
+            "FS Right Lingual",
+            0.40305364556488793
+        ],
+        [
+            "FS Right Superior Frontal",
+            0.4077121961138583
+        ],
+        [
+            "FS Left Entorhinal",
+            0.4314551657069356
+        ],
+        [
+            "FS Left Superior Frontal",
+            0.5018579093805733
+        ],
+        [
+            "FS Right Cuneus",
+            0.5075798968800536
+        ],
+        [
+            "FS Right Entorhinal",
+            0.5677402895586071
+        ],
+        [
+            "FS Right Posterior Cingulate",
+            0.5882770010743374
+        ],
+        [
+            "FS Left Superior Parietal",
+            0.6218402920652183
+        ],
+        [
+            "FS Right Parahippocampal",
+            0.6654511237739641
+        ],
+        [
+            "FS Left Parahippocampal",
+            0.7052075549417788
+        ],
+        [
+            "FS Right Caudal Anterior Cingulate",
+            0.730411214925156
+        ],
+        [
+            "FS Left Paracentral",
+            0.790918846970446
+        ],
+        [
+            "FS Left Insula",
+            0.9239626875318617
+        ],
+        [
+            "FS Right Insula",
+            0.9683141683032199
+        ]
+    ],
+    "volume_percentiles": [
+        [
+            "FS Intracranial",
+            0.279962757269297
+        ],
+        [
+            "FS Brain Segment",
+            0.8616100611345157
+        ],
+        [
+            "FS Left Cortex Gray Matter",
+            0.7389740641130526
+        ],
+        [
+            "FS Right Cortex Gray Matter",
+            0.6806578821142331
+        ],
+        [
+            "FS Total Cortex Gray Matter",
+            0.7108329418293755
+        ],
+        [
+            "FS Subcortical Gray Matter",
+            0.5254049860116425
+        ],
+        [
+            "FS Total Gray Matter",
+            0.7224331552636369
+        ],
+        [
+            "FS Left White Matter",
+            0.9319035385471155
+        ],
+        [
+            "FS Right White Matter",
+            0.879290567898001
+        ],
+        [
+            "FS Total White Matter",
+            0.9083278618077804
+        ],
+        [
+            "FS Left Lateral Ventricle",
+            0.9599578635314813
+        ],
+        [
+            "FS Left Cerebellum Cortex",
+            0.7866971239103957
+        ],
+        [
+            "FS Left Thalamus Proper",
+            0.35274251588339767
+        ],
+        [
+            "FS Left Caudate",
+            0.08215979222173897
+        ],
+        [
+            "FS Left Putamen",
+            0.5197517895995273
+        ],
+        [
+            "FS Left Pallidum",
+            0.9996683010341417
+        ],
+        [
+            "FS 3rd Ventricle",
+            0.9999949316500227
+        ],
+        [
+            "FS 4th Ventricle",
+            0.9192884708349993
+        ],
+        [
+            "FS Brain Stem",
+            0.6719409303088715
+        ],
+        [
+            "FS Left Hippocampus",
+            0.5413612360219604
+        ],
+        [
+            "FS Left Amygdala",
+            0.9322288048233442
+        ],
+        [
+            "FS Left Accumbens Area",
+            0.5157167764161121
+        ],
+        [
+            "FS Right Lateral Ventricle",
+            0.5673415644676106
+        ],
+        [
+            "FS Right Cerebellum Cortex",
+            0.6148110762773668
+        ],
+        [
+            "FS Right Thalamus Proper",
+            0.791251828777114
+        ],
+        [
+            "FS Right Caudate",
+            0.16235916534406386
+        ],
+        [
+            "FS Right Putamen",
+            0.4642643759409802
+        ],
+        [
+            "FS Right Pallidum",
+            0.9981662369955847
+        ],
+        [
+            "FS Right Hippocampus",
+            0.5986232366887724
+        ],
+        [
+            "FS Right Amygdala",
+            0.9404981214209971
+        ],
+        [
+            "FS Right Accumbens Area",
+            0.5105882785071796
+        ]
+    ]
+}

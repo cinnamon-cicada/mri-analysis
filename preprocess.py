@@ -39,7 +39,6 @@ def preprocess_adhd200(
         print("Get one free at: https://surfer.nmr.mgh.harvard.edu/registration.html")
         return
     freesurfer_license = os.path.abspath(freesurfer_license)
-    print(f"Using FreeSurfer license: {freesurfer_license}")
 
     subjects = [d for d in os.listdir(input_dir) if os.path.isdir(os.path.join(input_dir, d))]
     print(f"Found {len(subjects)} subjects to process in {input_dir}")
@@ -55,8 +54,7 @@ def preprocess_adhd200(
             print(f"No T1w file found for {subj}, skipping...")
             continue
 
-        t1_path = t1_files[0]
-        print(f"Pre-processing {subj} with file: {os.path.basename(t1_path)}")
+        print(f"Pre-processing subject: {subj}")
 
         # Run FastSurfer Docker command
         run_fastsurfer_docker(subj, input_dir, output_dir, freesurfer_license, n_threads)
@@ -139,7 +137,7 @@ class FreeSurferExtractor:
         
         # Mapping from FreeSurfer names to HCP column names
         aseg_mapping = {
-            'EstimatedTotalIntraCranialVol': 'FS_IntraCranial_Vol',
+            'eTIV': 'FS_IntraCranial_Vol',
             'BrainSegVol': 'FS_BrainSeg_Vol',
             'lhCortexVol': 'FS_LCort_GM_Vol',
             'rhCortexVol': 'FS_RCort_GM_Vol',
@@ -151,7 +149,7 @@ class FreeSurferExtractor:
             'CerebralWhiteMatterVol': 'FS_Tot_WM_Vol',
             'Left-Lateral-Ventricle': 'FS_L_LatVent_Vol',
             'Left-Cerebellum-Cortex': 'FS_L_Cerebellum_Cort_Vol',
-            'Left-Thalamus-Proper': 'FS_L_ThalamusProper_Vol',
+            'Left-Thalamus': 'FS_L_ThalamusProper_Vol',
             'Left-Caudate': 'FS_L_Caudate_Vol',
             'Left-Putamen': 'FS_L_Putamen_Vol',
             'Left-Pallidum': 'FS_L_Pallidum_Vol',
@@ -163,7 +161,7 @@ class FreeSurferExtractor:
             'Left-Accumbens-area': 'FS_L_AccumbensArea_Vol',
             'Right-Lateral-Ventricle': 'FS_R_LatVent_Vol',
             'Right-Cerebellum-Cortex': 'FS_R_Cerebellum_Cort_Vol',
-            'Right-Thalamus-Proper': 'FS_R_ThalamusProper_Vol',
+            'Right-Thalamus': 'FS_R_ThalamusProper_Vol',
             'Right-Caudate': 'FS_R_Caudate_Vol',
             'Right-Putamen': 'FS_R_Putamen_Vol',
             'Right-Pallidum': 'FS_R_Pallidum_Vol',
@@ -175,10 +173,16 @@ class FreeSurferExtractor:
         with open(stats_file, 'r') as f:
             for line in f:
                 line = line.strip()
-                
-                # Parse measure lines
+                if "Thalamus" in line:
+                    parts = line.split()
+                    measure_name = parts[4]
+                    value = float(parts[3])
+                    if measure_name in aseg_mapping:
+                        volumes[aseg_mapping[measure_name]] = value
+
                 if line.startswith('# Measure'):
                     parts = line.split(',')
+
                     if len(parts) >= 4:
                         measure_name = parts[1].strip()
                         value = float(parts[3].strip())
@@ -211,13 +215,13 @@ class FreeSurferExtractor:
         """
         stats_file = None
         if not subjects_path:
-            stats_file = self.subjects_dir / subject_id / 'stats' / f'{hemisphere}.aparc.stats'
+            stats_file = self.subjects_dir / subject_id / 'stats' / f'{hemisphere}.aparc.DKTatlas.stats'
         else:
-            stats_file = subjects_path / 'stats' / f'{hemisphere}.aparc.stats'
+            stats_file = subjects_path / 'stats' / f'{hemisphere}.aparc.DKTatlas.stats'
         thickness = {}
         
         if not stats_file.exists():
-            print(f"Warning: {hemisphere}.aparc.stats not found for {subject_id}")
+            print(f"Warning: {hemisphere}.aparc.DKTatlas.stats not found for {subject_id}")
             return thickness
         
         prefix = 'FS_L_' if hemisphere == 'lh' else 'FS_R_'
@@ -279,13 +283,10 @@ class FreeSurferExtractor:
         # For each subject, get percentile
         z_scores = {'volume_percentiles': [], 'thickness_percentiles': []}
 
-        # delete
-        print('******\n', lab_data.keys(), '\n\n', ref_df.columns)
-
         for part in ref_df.columns:
             mean = ref_df[part].mean()
             std = ref_df[part].std()
-            z_score = (lab_data[part] - mean) / std
+            z_score = (lab_data[part] - mean) / std #TODO: debug. part not found.
             percentile = stats.norm.cdf(z_score)
 
             if '_Vol' in part:

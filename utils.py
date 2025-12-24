@@ -196,28 +196,22 @@ def run_fastsurfer_docker(subjects: list,
 
 # Post-FastSurfer step to add .aparc.stats files
 def run_freesurfer(subjects: list,
-                   output_dir: str, 
+                   input_dir: str, 
                    freesurfer_license: str):
-    uid = str(os.getuid())
-    gid = str(os.getgid())
-    for subject_id in subjects:
-        parcstats_cmd = [
-            "docker", "run", "--rm",
-            "-u", f"{uid}:{gid}",
-            "-e", "HOME=/tmp",
-            "-e", "FS_LICENSE=/opt/freesurfer/license.txt",
-            "-e", "SUBJECTS_DIR=/processed_data/{subject_id}",
-            "-v", f"{output_dir}:/subjects",
-            "-v", f"{freesurfer_license}:/opt/freesurfer/license.txt:ro",
-            "deepmi/fastsurfer:latest",
-            "recon-all",
-            "-s", subject_id,
-            "-parcstats",
-        ]
+    cmd = [                             #TODO: Note that this method has not been tested.
+        "docker", "run", "--rm",
+        "-u", f"0",
+        "-e", "HOME=/tmp",
+        "-e", "SUBJECTS_DIR=/subjects",
+        "-e", "FS_LICENSE=/opt/freesurfer/license.txt",
+        "-v", f"{input_dir}:/subjects",
+        "-v", f"{freesurfer_license}:/opt/freesurfer/license.txt:ro",
+        "freesurfer/freesurfer:7.1.1",
+    ]
 
     try:
         subprocess.run(
-            parcstats_cmd,
+            cmd,
             check=True,
             capture_output=True,
             text=True
