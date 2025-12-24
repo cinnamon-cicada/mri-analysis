@@ -307,8 +307,8 @@ def prepare_for_fastsurfer(input_dir):
     return subjects
 
 
-def preprocess_lab_data(input_dir: str = './lab_data',
-                        output_dir: str = './processed_data/adhd_lab',
+def preprocess_lab_data(input_dir: str = '/lab_data',
+                        output_dir: str = '/processed_data/adhd_lab',
                         freesurfer_license: Optional[str] = None,
                         run_step_3: bool = False):
     # Step 1: Prepare data for FastSurfer

@@ -62,7 +62,7 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
-# If no specific dataset selected, download all
+# If no specific dataset selected, select all
 if [ "$DOWNLOAD_ADHD" = false ] && [ "$DOWNLOAD_HCPYA" = false ]; then
     DOWNLOAD_ADHD=true
     DOWNLOAD_HCPYA=true
@@ -242,9 +242,7 @@ download_hcpya() {
 # Function to create download summary
 create_summary() {
     local SUMMARY_FILE="$BASE_DIR/download_summary.txt"
-    
-    print_info "Creating download summary..."
-    
+        
     {
         echo "=========================================="
         echo "Dataset Download Summary"
@@ -282,12 +280,6 @@ create_summary() {
 
 # Main execution
 main() {
-    echo ""
-    echo "=========================================="
-    echo "Neuroimaging Dataset Downloader"
-    echo "=========================================="
-    echo ""
-    
     if [ "$TEST_MODE" = true ]; then
         print_warning "Running in TEST mode - downloading sample data only"
     else
@@ -301,8 +293,6 @@ main() {
         fi
     fi
     
-    echo ""
-    
     # Check dependencies
     check_dependencies
     
@@ -310,7 +300,7 @@ main() {
     mkdir -p "$BASE_DIR"
     
     # Download datasets
-    # TODO: Flesh the placeholder sections below.
+    #TODO: Flesh out the placeholder sections below.
     if [ "$DOWNLOAD_ADHD" = true ]; then
         download_adhd200
         echo ""
@@ -323,10 +313,7 @@ main() {
     
     # Create summary
     create_summary
-    
-    echo ""
     print_success "All downloads complete!"
-    echo ""
 }
 
 # Run main function

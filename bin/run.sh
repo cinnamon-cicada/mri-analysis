@@ -35,7 +35,7 @@ NC='\033[0m' # No Color
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 DATA_DIR="$SCRIPT_DIR/outside_data"
 DOWNLOAD_SCRIPT="$SCRIPT_DIR/download.sh"
-MAIN_SCRIPT="$SCRIPT_DIR/../main.py"
+MAIN_SCRIPT="$SCRIPT_DIR/../scripts/main.py"
 
 # Default settings
 TEST_MODE=""
@@ -121,64 +121,32 @@ is_directory_empty() {
 ensure_adhd200() {
     local adhd_dir="$DATA_DIR/adhd200"
     
-    if is_directory_empty "$adhd_dir"; then
-        print_info "ADHD-200 dataset not found or empty"
-        print_info "Downloading ADHD-200 dataset..."
-        
-        if [ ! -f "$DOWNLOAD_SCRIPT" ]; then
-            print_error "Download script not found: $DOWNLOAD_SCRIPT"
-            exit 1
-        fi
+    # Make download script executable if needed
+    chmod +x "$DOWNLOAD_SCRIPT"
 
-        # Make download script executable if needed
-        chmod +x "$DOWNLOAD_SCRIPT"
+    # Run download script
+    "$DOWNLOAD_SCRIPT" $TEST_MODE --adhd
 
-        # Run download script
-        "$DOWNLOAD_SCRIPT" $TEST_MODE --adhd
-        
-        if [ $? -ne 0 ]; then
-            print_error "Failed to download ADHD-200 dataset"
-            exit 1
-        fi
-        
-        print_success "ADHD-200 dataset downloaded"
-    else
-        print_info "ADHD-200 dataset found at $adhd_dir"
-    fi
 }
 
 # Download HCP-YA dataset if needed
 ensure_hcpya() {
     local hcpya_dir="$DATA_DIR/hcp-ya"
+
+    # Make download script executable if needed
+    chmod +x "$DOWNLOAD_SCRIPT"
     
-    if is_directory_empty "$hcpya_dir"; then
-        print_info "HCP-YA dataset not found or empty"
-        print_info "Downloading HCP-YA dataset..."
-        
-        if [ ! -f "$DOWNLOAD_SCRIPT" ]; then
-            print_error "Download script not found: $DOWNLOAD_SCRIPT"
-            exit 1
-        fi
-        
-        # Make download script executable if needed
-        chmod +x "$DOWNLOAD_SCRIPT"
-        
-        # Run download script
-        "$DOWNLOAD_SCRIPT" $TEST_MODE --hcp-ya
-        
-        if [ $? -ne 0 ]; then
-            print_error "Failed to download HCP-YA dataset"
-            exit 1
-        fi
-        
-        print_success "HCP-YA dataset downloaded"
-    else
-        print_info "HCP-YA dataset found at $hcpya_dir"
-    fi
+    # Run download script. This will also check if download is needed.
+    "$DOWNLOAD_SCRIPT" $TEST_MODE --hcp-ya
 }
 
 # Prepare datasets based on which analyses are requested
 prepare_datasets() {
+    echo ""
+    echo "=========================================="
+    echo "Neuroimaging Dataset Downloader"
+    echo "=========================================="
+    echo ""
     print_info "Determining required datasets..."
     
     local needs_adhd=false
@@ -235,16 +203,18 @@ main() {
     echo "  Analyses to run: ${ANALYSIS_NUMBERS[*]}"
     echo "  Data directory: $DATA_DIR"
     echo "  Main script: $MAIN_SCRIPT"
-    echo ""
     
     # Prepare all required datasets (download if needed)
-    echo "=========================================="
     prepare_datasets
-    echo "=========================================="
     echo ""
 
     # Run main.py with all analysis numbers as arguments
-    print_info "Running main.py with analysis array: ${ANALYSIS_NUMBERS[*]}"
+    echo ""
+    echo "=========================================="
+    echo "Run Details"
+    echo "=========================================="
+    echo ""
+    print_info "Running main.py with analysis: ${ANALYSIS_NUMBERS[*]}"
     echo ""
     
     python3 "$MAIN_SCRIPT" "${ANALYSIS_NUMBERS[@]}"
@@ -259,14 +229,7 @@ main() {
     fi
     
     # Final summary
-    echo ""
-    echo "=========================================="
-    print_success "All processing complete!"
-    echo "=========================================="
-    echo ""
-    
-    # Show summary
-    print_info "Analyses completed: ${ANALYSIS_NUMBERS[*]}"
+    print_info "Analysis(es) completed: ${ANALYSIS_NUMBERS[*]}"
     
     # Create processing log
     local log_file="$SCRIPT_DIR/processing_log.txt"

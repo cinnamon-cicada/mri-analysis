@@ -16,12 +16,9 @@ def main(choice=[], subjects=None):
         # Default analysis code here
     else:
         for analysis in choice:
-            print(f"Running analysis: {analysis}")
             # Specific analysis code here
             if analysis == "1":
                 # ADHD Analysis
-                print("Performing Analysis 1...")
-                # Analyze ADHD-200 dataset
                 # Run preprocessing if not already done
                 if not os.listdir("./processed_data/adhd200"):
                     preprocess_adhd200(
@@ -48,13 +45,10 @@ def main(choice=[], subjects=None):
 
                 # Run ADHD analysis
                 run_adhd_analysis()
-                print("\nFinished analysis!")
 
             elif analysis == "2":
                 # Exceptions Analysis
-                print("Performing Analysis 2.")
-
-                # Preprocess data if needed
+                # Preprocess as needed
                 if not os.path.exists("./processed_data/outlier_lab"):
                     preprocess_lab_data(
                         input_dir="./lab_data",
@@ -63,7 +57,7 @@ def main(choice=[], subjects=None):
                         run_step_3=True
                     )
                 else:
-                    print("Skipped outlier lab data preprocessing.")
+                    print("Skipped lab data preprocessing.")
 
                 # Assume reference data is in ./outside_data/hcp-ya/HCP_YA_81.csv
                 
