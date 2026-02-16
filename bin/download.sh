@@ -235,7 +235,7 @@ download_hcpya() {
 
     # Download HCP-YA dataset from HCP-YA website
     print_info "Downloading HCP-YA dataset from HCP-YA website..."
-    curl -o "$HCPYA_DIR/HCP_YA_81.csv" "https://www.humanconnectome.org/study/hcp-young-adult/document/hcp-young-adult-data-release"
+    curl -o "$HCPYA_DIR/HCP_YA.csv" "https://www.humanconnectome.org/study/hcp-young-adult/document/hcp-young-adult-data-release"
     print_success "HCP-YA dataset downloaded to $HCPYA_DIR"
 }
 

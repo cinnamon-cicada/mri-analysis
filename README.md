@@ -4,6 +4,17 @@
 
 An analysis on my brain. Maybe one day, it'll be an app. Feel free to check it out!
 
+## Table of Contents
+
+- [Dataset](#dataset)
+- [Pipeline](#pipeline)
+- [Installation](#installation)
+- [Usage](#usage)
+- [Built With](#built-with)
+- [License](#license)
+- [Acknowledgments](#acknowledgments)
+- [Roadmap](#roadmap)
+
 ## Dataset
 
 This project includes MRI scan data from subject cinnamon-cicada, containing multiple sequences acquired during a single scanning session:
@@ -41,17 +52,6 @@ The `Data/` directory contains the following MRI sequences:
 - The ADHD200/WashU preprocessed dataset was downloaded at this link (9GB): https://www.nitrc.org/frs/downloadlink.php/3270
 - For a custom preprocessing pipeline, the run.sh script can be run.
 
-## Table of Contents
-
-- [Dataset](#dataset)
-- [Pipeline](#pipeline)
-- [Installation](#installation)
-- [Usage](#usage)
-- [Built With](#built-with)
-- [License](#license)
-- [Acknowledgments](#acknowledgments)
-- [Roadmap](#roadmap)
-
 ## Pipeline
 
 1. MRI inputs: `./outside_data/[analysis name]`, `./lab_data/[analysis name]`
@@ -70,7 +70,7 @@ pip install -r requirements.txt
 
 ### FreeSurfer Setup (via Docker)
 
-This project uses FreeSurfer for structural MRI analysis. We run FreeSurfer through Docker to avoid dependency issues.
+This project uses FreeSurfer for structural MRI analysis. The library is run through Docker to avoid dependency issues.
 
 #### 1. Install Docker
 ```bash
@@ -140,7 +140,7 @@ Usage:
   ./run.sh [OPTIONS] [ANALYSIS_NUMBERS...]
 
 Options:
-  --test       Run in test mode (downloads sample data if needed)
+  --test       Run in test mode (downloads sample data instead of full)
   --help       Show this help message
 
 Analysis Numbers:

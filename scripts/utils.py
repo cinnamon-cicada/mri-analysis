@@ -97,6 +97,42 @@ human_readable_cols = {
     'FS_R_Insula_Thck': 'FS Right Insula'
 }
 
+# Mapping from FreeSurfer names to HCP column names
+aseg_mapping = {
+    'eTIV': 'FS_IntraCranial_Vol',
+    'BrainSegVol': 'FS_BrainSeg_Vol',
+    'lhCortexVol': 'FS_LCort_GM_Vol',
+    'rhCortexVol': 'FS_RCort_GM_Vol',
+    'CortexVol': 'FS_TotCort_GM_Vol',
+    'SubCortGrayVol': 'FS_SubCort_GM_Vol',
+    'TotalGrayVol': 'FS_Total_GM_Vol',
+    'lhCerebralWhiteMatterVol': 'FS_L_WM_Vol',
+    'rhCerebralWhiteMatterVol': 'FS_R_WM_Vol',
+    'CerebralWhiteMatterVol': 'FS_Tot_WM_Vol',
+    'Left-Lateral-Ventricle': 'FS_L_LatVent_Vol',
+    'Left-Cerebellum-Cortex': 'FS_L_Cerebellum_Cort_Vol',
+    'Left-Thalamus': 'FS_L_ThalamusProper_Vol',
+    'Left-Caudate': 'FS_L_Caudate_Vol',
+    'Left-Putamen': 'FS_L_Putamen_Vol',
+    'Left-Pallidum': 'FS_L_Pallidum_Vol',
+    '3rd-Ventricle': 'FS_3rdVent_Vol',
+    '4th-Ventricle': 'FS_4thVent_Vol',
+    'Brain-Stem': 'FS_BrainStem_Vol',
+    'Left-Hippocampus': 'FS_L_Hippo_Vol',
+    'Left-Amygdala': 'FS_L_Amygdala_Vol',
+    'Left-Accumbens-area': 'FS_L_AccumbensArea_Vol',
+    'Right-Lateral-Ventricle': 'FS_R_LatVent_Vol',
+    'Right-Cerebellum-Cortex': 'FS_R_Cerebellum_Cort_Vol',
+    'Right-Thalamus': 'FS_R_ThalamusProper_Vol',
+    'Right-Caudate': 'FS_R_Caudate_Vol',
+    'Right-Putamen': 'FS_R_Putamen_Vol',
+    'Right-Pallidum': 'FS_R_Pallidum_Vol',
+    'Right-Hippocampus': 'FS_R_Hippo_Vol',
+    'Right-Amygdala': 'FS_R_Amygdala_Vol',
+    'Right-Accumbens-area': 'FS_R_AccumbensArea_Vol'
+}
+
+
 def run_fastsurfer_docker(subjects: list, 
                           input_dir: str, output_dir: str, 
                           freesurfer_license: str, 

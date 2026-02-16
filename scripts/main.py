@@ -1,7 +1,7 @@
 import os
 import sys
 from analysis import run_adhd_analysis
-from preprocess import preprocess_adhd200, FreeSurferExtractor
+from preprocess import preprocess_adhd200, run_outlier_analysis
 from utils import preprocess_lab_data
 import json
 
@@ -59,11 +59,10 @@ def main(choice=[], subjects=None):
                 else:
                     print("Skipped lab data preprocessing.")
 
-                # Assume reference data is in ./outside_data/hcp-ya/HCP_YA_81.csv
+                # Assume reference data is in ./outside_data/hcp-ya/HCP_YA.csv
                 
                 # Use extractor to get comparison results
-                extractor = FreeSurferExtractor(subjects_dir="./processed_data/outlier_lab")
-                percentiles = extractor.get_comparison_results()
+                percentiles = run_outlier_analysis(subjects_dir="./processed_data/outlier_lab")
                 percentiles["thickness_percentiles"].sort(key=lambda x: x[1])
 
                 # Save percentiles to JSON file
