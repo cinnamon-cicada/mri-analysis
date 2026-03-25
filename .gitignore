@@ -6,6 +6,8 @@ venv/*
 .venv/*
 env/*
 __pycache__/*
+*key*
+*_key*
 
 ADHD200_download_links.sh
 .env
