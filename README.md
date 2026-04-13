@@ -2,7 +2,7 @@
 
 ## Description
 
-An analysis on my brain. Maybe one day, it'll be an app. Feel free to check it out!
+An analysis on my brain, and potential app. Check it out!
 
 ## Table of Contents
 
