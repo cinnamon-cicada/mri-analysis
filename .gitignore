@@ -8,6 +8,7 @@ env/*
 __pycache__/*
 *key*
 *_key*
+ubuntu@*
 
 ADHD200_download_links.sh
 .env
