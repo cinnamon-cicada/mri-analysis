@@ -59,14 +59,7 @@ The `Data/` directory contains the following MRI sequences:
 2. Process using Fastsurfer: `preprocess.py` -> `./processed_data/[analysis name]`
 3. Collect final statistics and report: `analysis.py` -> `analysis/[analysis name].json`
 
-Note: For Analysis 2 (outliers), preprocess.py currently contains ALL steps of the process. This will be corrected later.
-
 ## Installation
-
-### Prerequisites
-```bash
-pip install -r requirements.txt
-```
 
 ### FreeSurfer Setup (via Docker)
 
@@ -118,8 +111,12 @@ mkdir -p ~/.freesurfer
 mv license.txt ~/.freesurfer/
 ```
 
-### Quick Start
+### Project Setup
 ```bash
+# Create virtual environment
+python -m venv env
+source env/bin/activate
+
 # Clone the repository
 git clone https://github.com/username/MRI_Scan.git
 
