@@ -5,7 +5,7 @@ unorganized_lab_data/*
 venv/*
 .venv/*
 env/*
-__pycache__/*
+*__pycache__/*
 *key*
 *_key*
 ubuntu@*
