@@ -113,21 +113,23 @@ mv license.txt ~/.freesurfer/
 
 ### Project Setup
 ```bash
-# Create virtual environment
-python -m venv env
-source env/bin/activate
-
 # Clone the repository
-git clone https://github.com/username/MRI_Scan.git
+git clone https://github.com/cinnamon-cicada/mri-analysis
 
 # Navigate to the project directory
 cd MRI_Scan
 
+# Create virtual environment
+python3 -m venv env
+source env/bin/activate
+
 # Install dependencies
+pip install --upgrade pip
 pip install -r requirements.txt
 
-# Run the application
-python main.py
+# Make bash script executable
+chmod +x ./bin/run.sh
+
 ```
 
 ## Usage
@@ -150,6 +152,10 @@ Examples:
   ./run.sh --test 1 2     # Run analyses 1 and 2 in test mode
   ./run.sh 2 1            # Run analysis 2 then analysis 1
   ./run.sh 1 1 2          # Run analysis 1 twice, then analysis 2
+
+
+# Run the application
+python scripts/main.py
 ```
 
 ## Built With
