@@ -1,23 +1,9 @@
-import time
-from queue_system import job_queue
-import subprocess
+from concurrent.futures import ProcessPoolExecutor
+from fastsurfer import process_mri_job
 
-def run_fastsurfer(file_path):
-    print(f"Processing {file_path}")
+# ✅ LIMIT: only 2 FastSurfer jobs at once
+executor = ProcessPoolExecutor(max_workers=2)
 
-    # Example FastSurfer command
-    subprocess.run([
-        "fastsurfer",
-        "--t1", file_path,
-        "--sd", "outputs",
-        "--sid", file_path.split("/")[-1]
-    ])
 
-while True:
-    job = job_queue.get()
-    print(f"Starting job {job['job_id']}")
-
-    run_fastsurfer(job["file_path"])
-
-    print(f"Finished job {job['job_id']}")
-    job_queue.task_done()
+def submit_job(job_id: str, file_path: str):
+    executor.submit(process_mri_job, job_id, file_path)

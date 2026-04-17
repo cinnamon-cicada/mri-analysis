@@ -2,10 +2,33 @@ import os
 import sys
 from analysis import run_adhd_analysis
 from preprocess import preprocess_adhd200, run_outlier_analysis
-from utils import preprocess_lab_data
+from utils import preprocess_lab_data, queue_manager
 import json
 
-def main(choice=[], subjects=None):
+from concurrent.futures import ProcessPoolExecutor, Semaphore
+from threading import Thread
+from queue import Queue
+
+# set system hard limits
+os.environ["OMP_NUM_THREADS"] = "1"
+os.environ["MKL_NUM_THREADS"] = "1"
+MAX_JOBS = 2
+semaphore = Semaphore(MAX_JOBS)
+
+# queue analyses
+job_queue = Queue()
+executor = ProcessPoolExecutor(max_workers=MAX_JOBS)
+
+
+# MAIN
+if __name__ == "__main__":
+    # start queue only when running as script
+    Thread(
+        target=queue_manager,
+        args=(job_queue, executor),
+        daemon=True
+    ).start()
+
     # Pre-process data in general
     script_dir = os.path.dirname(os.path.abspath(__file__))
     license_path = os.path.join(script_dir, "license.txt")

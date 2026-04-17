@@ -24,6 +24,12 @@
 
 set -e  # Exit on error
 
+# set number of threads for libraries to 1 to avoid oversubscription
+export OMP_NUM_THREADS=1
+export MKL_NUM_THREADS=1
+export OPENBLAS_NUM_THREADS=1
+export NUMEXPR_NUM_THREADS=1
+
 # Color codes
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -217,7 +223,7 @@ main() {
     print_info "Running main.py with analysis: ${ANALYSIS_NUMBERS[*]}"
     echo ""
     
-    python3 "$MAIN_SCRIPT" "${ANALYSIS_NUMBERS[@]}"
+    taskset -c 0 python3 "$MAIN_SCRIPT" "${ANALYSIS_NUMBERS[@]}"
     
     if [ $? -eq 0 ]; then
         echo ""

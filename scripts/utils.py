@@ -136,7 +136,7 @@ aseg_mapping = {
 def run_fastsurfer_docker(subjects: list, 
                           input_dir: str, output_dir: str, 
                           freesurfer_license: str, 
-                          n_threads=8
+                          n_threads=4
                           ) -> Dict:
     """
     Run FastSurfer using Docker directly after preprocessing.
@@ -151,7 +151,7 @@ def run_fastsurfer_docker(subjects: list,
         Directory for FastSurfer output
     freesurfer_license : str or Path
         Path to FreeSurfer license file
-    n_threads : int, default=8
+    n_threads : int, default=4
         Number of threads to use
     
     Returns:
@@ -189,7 +189,7 @@ def run_fastsurfer_docker(subjects: list,
 
         docker_cmd = [
             "docker", "run", "--rm",
-            "--gpus", "all",                     # GPU access
+            # "--gpus", "all",                     # GPU access
             "-u", f"{uid}:{gid}",                # Run as current user
             "-e", "HOME=/tmp",
             "-e", f"OMP_NUM_THREADS={n_threads}",
@@ -370,4 +370,47 @@ def preprocess_lab_data(input_dir: str = '/lab_data',
         freesurfer_license=freesurfer_license)
 
 
+# ================================
+# QUEUE SYSTEM METHODS
+# ================================
 
+# CPU pinning
+def pin_to_core(core_id: int):
+    try:
+        os.sched_setaffinity(0, {core_id})
+        print(f"[Worker] Pinned to CPU core {core_id}")
+    except Exception as e:
+        print(f"[Worker] Affinity error: {e}")
+
+
+# actual worker
+def run_job(job, semaphore):
+    job_id = job["job_id"]
+    file_path = job["file_path"]
+
+    # 🔥 BLOCK HERE IF 2 JOBS ALREADY RUNNING
+    with semaphore:
+        print(f"[Queue] Starting job {job_id}")
+
+        pin_to_core(2 if hash(job_id) % 2 == 0 else 3)
+
+        run_fastsurfer_docker(
+            subjects=[job_id],
+            input_dir=os.path.dirname(file_path),
+            output_dir="./output",
+            freesurfer_license="/path/to/license",
+            n_threads=1
+        )
+
+        print(f"[Queue] Finished job {job_id}")
+
+
+# queue loop
+def queue_manager(job_queue: Queue, executor: ProcessPoolExecutor):
+    while True:
+        job = job_queue.get()
+
+        # Submit to process pool
+        executor.submit(run_job, job)
+
+        job_queue.task_done()
