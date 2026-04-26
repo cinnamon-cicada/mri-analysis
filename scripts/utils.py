@@ -6,8 +6,6 @@ import nibabel as nib
 from pathlib import Path
 import subprocess
 
-
-
 human_readable_cols = {
     '7T_Full_MR_Compl': '7T Full MR Complete',
     'MEG_FullProt_Compl': 'MEG Full Protocol Complete',
@@ -383,34 +381,21 @@ def pin_to_core(core_id: int):
         print(f"[Worker] Affinity error: {e}")
 
 
-# actual worker
-def run_job(job, semaphore):
-    job_id = job["job_id"]
-    file_path = job["file_path"]
+from queue import Queue
+from concurrent.futures import ProcessPoolExecutor
+from main import main
 
-    # 🔥 BLOCK HERE IF 2 JOBS ALREADY RUNNING
-    with semaphore:
-        print(f"[Queue] Starting job {job_id}")
-
-        pin_to_core(2 if hash(job_id) % 2 == 0 else 3)
-
-        run_fastsurfer_docker(
-            subjects=[job_id],
-            input_dir=os.path.dirname(file_path),
-            output_dir="./output",
-            freesurfer_license="/path/to/license",
-            n_threads=1
-        )
-
-        print(f"[Queue] Finished job {job_id}")
-
-
-# queue loop
 def queue_manager(job_queue: Queue, executor: ProcessPoolExecutor):
+    """
+    Continuously consumes jobs and submits them to the process pool.
+    """
+
     while True:
-        job = job_queue.get()
+        job = job_queue.get()   # blocks until a job exists
 
-        # Submit to process pool
-        executor.submit(run_job, job)
+        try:
+            # submit job to a worker process
+            executor.submit(main, job)
 
-        job_queue.task_done()
+        except Exception as e:
+            print(f"[QUEUE MANAGER] Failed to submit job: {e}")
