@@ -1,7 +1,6 @@
 """
-Minimal FastAPI entrypoint for the Cloud Run Job worker.
+Minimal FastAPI entrypoint for the Cloud Run Service worker.
 Cloud Tasks POST /run with {"job_id": "...", "file_ref": "..."}.
-The job terminates (process exits) immediately after the task completes.
 """
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse

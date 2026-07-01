@@ -1,34 +1,37 @@
-apiVersion: run.googleapis.com/v1
-kind: Job
+apiVersion: serving.knative.dev/v1
+kind: Service
 metadata:
   name: mri-worker
 spec:
   template:
+    metadata:
+      annotations:
+        autoscaling.knative.dev/minScale: "0"
+        autoscaling.knative.dev/maxScale: "5"
+        run.googleapis.com/execution-environment: gen2
     spec:
-      taskCount: 1
-      template:
-        spec:
-          timeoutSeconds: 7200   # 2 hours max per job
-          serviceAccountName: mri-worker-sa@PROJECT_ID.iam.gserviceaccount.com
-          containers:
-            - image: REGION-docker.pkg.dev/PROJECT_ID/mri/worker:latest
-              ports:
-                - containerPort: 8080
-              env:
-                - name: STORAGE_BACKEND
-                  value: firebase
-                - name: FIREBASE_STORAGE_BUCKET
-                  value: PROJECT_ID.appspot.com
-                - name: FASTSURFER_OUTPUT_DIR
-                  value: /tmp/fastsurfer_output
-                - name: FREESURFER_LICENSE
-                  valueFrom:
-                    secretKeyRef:
-                      name: freesurfer-license
-                      key: license
-              resources:
-                limits:
-                  cpu: "8"
-                  memory: 16Gi
-                  # Uncomment for GPU:
-                  # nvidia.com/gpu: "1"
+      containerConcurrency: 1   # one FastSurfer job per instance
+      timeoutSeconds: 3600      # 1-hour processing window
+      serviceAccountName: mri-worker-sa@PROJECT_ID.iam.gserviceaccount.com
+      containers:
+        - image: REGION-docker.pkg.dev/PROJECT_ID/mri/worker:latest
+          ports:
+            - containerPort: 8080
+          env:
+            - name: STORAGE_BACKEND
+              value: firebase
+            - name: FIREBASE_STORAGE_BUCKET
+              value: PROJECT_ID.appspot.com
+            - name: FASTSURFER_OUTPUT_DIR
+              value: /tmp/fastsurfer_output
+            - name: FREESURFER_LICENSE
+              valueFrom:
+                secretKeyRef:
+                  name: freesurfer-license
+                  key: license
+          resources:
+            limits:
+              cpu: "8"
+              memory: 16Gi
+              # Uncomment for GPU:
+              # nvidia.com/gpu: "1"

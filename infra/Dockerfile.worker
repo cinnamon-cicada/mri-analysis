@@ -1,4 +1,4 @@
-# FastSurfer worker image — runs on GPU-enabled Cloud Run Job (T4/L4).
+# FastSurfer worker image — runs on GPU-enabled Cloud Run Service (T4/L4).
 # Base: FastSurfer with GPU support + our pipeline code on top.
 FROM deepmi/fastsurfer:latest
 
