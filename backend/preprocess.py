@@ -219,7 +219,7 @@ def run_outlier_analysis(data_path: str) -> Dict[str, List]:
     # Get measurements for self-subject
     lab_data = extract_all_measurements("Karas_262199", data_path)
 
-    csv_path = Path(__file__).parent.parent / "outside_data" / "hcp-ya" / "HCP_YA_ALL.csv"
+    csv_path = Path(__file__).parent / "benchmark" / "HCP_YA_ALL.csv"
     ref_df = pd.read_csv(csv_path).drop(
         columns=['Subject', 'Release', 'Acquisition', 'Gender', 'Age',
                 '3T_Full_MR_Compl', '7T_Full_MR_Compl', 'MEG_FullProt_Compl']

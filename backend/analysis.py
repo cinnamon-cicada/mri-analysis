@@ -5,7 +5,7 @@ import json
 from math import erf, sqrt
 from pathlib import Path
 
-_HCP_YA_CSV = Path(__file__).parent.parent / "outside_data" / "hcp-ya" / "HCP_YA_ALL.csv"
+_HCP_YA_CSV = Path(__file__).parent / "benchmark" / "HCP_YA_ALL.csv"
 
 
 def compare_to_benchmark(subject_dir: str) -> dict:
