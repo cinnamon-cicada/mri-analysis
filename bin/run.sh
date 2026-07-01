@@ -41,7 +41,7 @@ NC='\033[0m' # No Color
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 DATA_DIR="$SCRIPT_DIR/outside_data"
 DOWNLOAD_SCRIPT="$SCRIPT_DIR/download.sh"
-MAIN_SCRIPT="$SCRIPT_DIR/../scripts/main.py"
+MAIN_SCRIPT="$SCRIPT_DIR/../backend/main.py"
 
 # Default settings
 TEST_MODE=""
