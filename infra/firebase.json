@@ -1,0 +1,28 @@
+{
+  "hosting": {
+    "public": "../frontend",
+    "ignore": ["firebase.json", "**/.*", "**/node_modules/**"],
+    "rewrites": [
+      { "source": "/upload",        "run": { "serviceId": "mri-api", "region": "us-central1" } },
+      { "source": "/status/**",     "run": { "serviceId": "mri-api", "region": "us-central1" } },
+      { "source": "/results/**",    "run": { "serviceId": "mri-api", "region": "us-central1" } },
+      { "source": "**",             "destination": "/home.html" }
+    ],
+    "headers": [
+      {
+        "source": "**",
+        "headers": [
+          { "key": "X-Frame-Options",       "value": "DENY" },
+          { "key": "X-Content-Type-Options", "value": "nosniff" },
+          { "key": "Referrer-Policy",        "value": "strict-origin-when-cross-origin" }
+        ]
+      }
+    ]
+  },
+  "firestore": {
+    "rules": "firestore.rules"
+  },
+  "storage": {
+    "rules": "storage.rules"
+  }
+}

@@ -1,0 +1,24 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Job metadata — backend service account writes; clients may read their own job.
+    match /jobs/{jobId} {
+      // Only the backend service account may write.
+      allow write: if false;
+      // Allow read only if the request includes a matching jobId claim.
+      // In practice, issue short-lived signed tokens per upload and verify here.
+      allow read: if request.auth != null && request.auth.token.job_id == jobId;
+    }
+
+    match /results/{jobId} {
+      allow write: if false;
+      allow read:  if request.auth != null && request.auth.token.job_id == jobId;
+    }
+
+    // Deny everything else by default.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

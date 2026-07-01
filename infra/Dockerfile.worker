@@ -1,0 +1,23 @@
+# FastSurfer worker image — runs on GPU-enabled Cloud Run Job (T4/L4).
+# Base: FastSurfer with GPU support + our pipeline code on top.
+FROM deepmi/fastsurfer:latest
+
+USER root
+
+RUN apt-get update && apt-get install -y python3-pip && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+COPY requirements.txt .
+RUN pip3 install --no-cache-dir -r requirements.txt
+
+COPY backend/ ./backend/
+
+WORKDIR /app/backend
+
+ENV STORAGE_BACKEND=firebase
+# FREESURFER_LICENSE must be provided at runtime via env or Secret Manager
+ENV FASTSURFER_OUTPUT_DIR=/tmp/fastsurfer_output
+
+# Entrypoint: receive job payload via HTTP POST /run (triggered by Cloud Tasks)
+CMD ["uvicorn", "worker_entrypoint:app", "--host", "0.0.0.0", "--port", "8080", "--workers", "1"]

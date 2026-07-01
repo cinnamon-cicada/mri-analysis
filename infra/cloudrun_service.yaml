@@ -1,0 +1,40 @@
+apiVersion: serving.knative.dev/v1
+kind: Service
+metadata:
+  name: mri-api
+  annotations:
+    run.googleapis.com/ingress: all
+spec:
+  template:
+    metadata:
+      annotations:
+        autoscaling.knative.dev/minScale: "0"
+        autoscaling.knative.dev/maxScale: "10"
+        run.googleapis.com/execution-environment: gen2
+    spec:
+      containerConcurrency: 80
+      timeoutSeconds: 60
+      serviceAccountName: mri-api-sa@PROJECT_ID.iam.gserviceaccount.com
+      containers:
+        - image: REGION-docker.pkg.dev/PROJECT_ID/mri/api:latest
+          ports:
+            - containerPort: 8080
+          env:
+            - name: STORAGE_BACKEND
+              value: firebase
+            - name: QUEUE_BACKEND
+              value: cloudtasks
+            - name: FIREBASE_STORAGE_BUCKET
+              value: PROJECT_ID.appspot.com
+            - name: GCP_PROJECT
+              value: PROJECT_ID
+            - name: GCP_QUEUE_LOCATION
+              value: us-central1
+            - name: GCP_QUEUE_NAME
+              value: mri-jobs
+            - name: GCP_WORKER_URL
+              value: https://mri-worker-HASH-uc.a.run.app
+          resources:
+            limits:
+              cpu: "1"
+              memory: 512Mi
