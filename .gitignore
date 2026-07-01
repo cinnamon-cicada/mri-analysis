@@ -5,7 +5,7 @@ unorganized_lab_data/*
 venv/*
 .venv/*
 env/*
-*__pycache__/*
+__pycache__/
 *key*
 *_key*
 *.pem
@@ -17,3 +17,5 @@ license.txt
 uploads/
 tmp/
 analysis_app/
+tests/fixtures/web_jobs/
+tests/fixtures/fastsurfer_output/
