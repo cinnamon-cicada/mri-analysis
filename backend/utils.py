@@ -204,7 +204,7 @@ def run_fastsurfer_docker(subjects: list,
         ]
 
         print(f"  Running FastSurfer...")
-        print(f"  Command: {' '.join(docker_cmd[:10])}...")
+        print(f"  Command:\n    " + " \\\n    ".join(docker_cmd))
 
         try:
             subprocess.run(
@@ -216,9 +216,18 @@ def run_fastsurfer_docker(subjects: list,
             )
 
             print(f"  ✓ FastSurfer completed successfully!")
+            print(f"  Output: {output_dir / subject_id}")
 
+        except subprocess.CalledProcessError as e:
+            print(f"  ✗ FastSurfer failed (exit {e.returncode})")
+            if e.stdout:
+                print("  STDOUT:\n", e.stdout[-3000:])
+            if e.stderr:
+                print("  STDERR:\n", e.stderr[-3000:])
+            raise
         except Exception as e:
             print(f"  ✗ FastSurfer failed: {str(e)}")
+            raise
         
         print("")
 
