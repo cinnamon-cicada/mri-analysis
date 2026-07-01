@@ -38,6 +38,11 @@ if os.path.isdir(FRONTEND_DIR):
         return templates.TemplateResponse("home.html", {"request": request})
 
 
+@app.get("/healthz")
+async def healthz():
+    return {"status": "ok"}
+
+
 @app.post("/upload")
 @limiter.limit("5/minute")
 async def upload(request: Request, file: UploadFile = File(...)):
