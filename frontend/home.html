@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>MRI Brain Analysis</title>
+  <link rel="stylesheet" href="/static/style.css" />
+</head>
+<body>
+
+  <!-- Upload screen -->
+  <div id="screen-upload" class="screen active">
+    <div class="card">
+      <h1>MRI Brain Analysis</h1>
+      <p class="subtitle">Upload a T1-weighted MRI scan (.nii or .nii.gz) to compare your brain structure against population norms.</p>
+
+      <label class="file-drop" id="dropZone">
+        <input type="file" id="fileInput" accept=".nii,.nii.gz" />
+        <span id="dropLabel">Drop your .nii.gz file here, or click to browse</span>
+      </label>
+
+      <button id="uploadBtn" class="btn" disabled>Analyze</button>
+      <div id="uploadError" class="error hidden"></div>
+    </div>
+  </div>
+
+  <!-- Processing screen -->
+  <div id="screen-processing" class="screen">
+    <div class="card">
+      <h1>Processing</h1>
+      <p class="subtitle" id="processingMsg">Your scan is queued for analysis. This typically takes 10–30 minutes.</p>
+      <div class="spinner"></div>
+      <p class="muted" id="jobIdDisplay"></p>
+    </div>
+  </div>
+
+  <!-- Results screen -->
+  <div id="screen-results" class="screen">
+    <div class="card wide">
+      <h1>Results</h1>
+      <p class="subtitle disclaimer">
+        Percentile rankings compare each region against the ADHD-200 reference population.
+        This is not a clinical diagnosis.
+      </p>
+
+      <div class="tabs">
+        <button class="tab active" data-tab="volumes">Volumes</button>
+        <button class="tab" data-tab="thickness">Cortical Thickness</button>
+      </div>
+
+      <div id="tab-volumes" class="tab-panel">
+        <div id="chart-volumes" class="chart"></div>
+      </div>
+      <div id="tab-thickness" class="tab-panel hidden">
+        <div id="chart-thickness" class="chart"></div>
+      </div>
+
+      <button class="btn secondary" id="restartBtn">Analyze another scan</button>
+    </div>
+  </div>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>
