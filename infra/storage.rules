@@ -3,9 +3,10 @@ service firebase.storage {
   match /b/{bucket}/o {
 
     // Uploaded scans — allow write on upload; only the backend service account reads.
-    match /uploads/{jobId}.nii.gz {
-      // Accept writes up to 200 MB; must be gzip content type.
-      allow write: if request.resource.size <= 200 * 1024 * 1024
+    match /uploads/{fileName} {
+      // Accept writes up to 200 MB; must be gzip content type and named <job_id>.nii.gz.
+      allow write: if fileName.matches('.*\\.nii\\.gz')
+                   && request.resource.size <= 200 * 1024 * 1024
                    && request.resource.contentType == 'application/gzip';
       // Only authenticated backend reads uploads (service account has storage.objectAdmin).
       allow read: if false;
