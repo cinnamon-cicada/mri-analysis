@@ -3,8 +3,6 @@ import os
 from pathlib import Path
 from typing import Dict, Optional
 import nibabel as nib
-from pathlib import Path
-import subprocess
 
 human_readable_cols = {
     '7T_Full_MR_Compl': '7T Full MR Complete',
@@ -228,33 +226,6 @@ def run_fastsurfer_docker(subjects: list,
     print("=" * 60)
 
 
-# Post-FastSurfer step to add .aparc.stats files
-def run_freesurfer(subjects: list,
-                   input_dir: str, 
-                   freesurfer_license: str):
-    cmd = [                             #TODO: Note that this method has not been tested.
-        "docker", "run", "--rm",
-        "-u", f"0",
-        "-e", "HOME=/tmp",
-        "-e", "SUBJECTS_DIR=/subjects",
-        "-e", "FS_LICENSE=/opt/freesurfer/license.txt",
-        "-v", f"{input_dir}:/subjects",
-        "-v", f"{freesurfer_license}:/opt/freesurfer/license.txt:ro",
-        "freesurfer/freesurfer:7.1.1",
-    ]
-
-    try:
-        subprocess.run(
-            cmd,
-            check=True,
-            capture_output=True,
-            text=True
-        )
-
-    except Exception as e:
-        print(f"  ✗ FreeSurfer failed: {str(e)}")
-
-
 def prepare_for_fastsurfer(input_dir):
     """
     Prepare organized T1w scans for FastSurfer processing.
@@ -343,16 +314,9 @@ def prepare_for_fastsurfer(input_dir):
 
 def preprocess_lab_data(input_dir: str = '/lab_data',
                         output_dir: str = '/processed_data/adhd_lab',
-                        freesurfer_license: Optional[str] = None,
-                        run_step_3: bool = False):
-    # Step 1: Prepare data for FastSurfer
-    subjects = prepare_for_fastsurfer(
-        input_dir=input_dir
-    )
-
+                        freesurfer_license: Optional[str] = None):
+    subjects = prepare_for_fastsurfer(input_dir=input_dir)
     output_dir = os.path.abspath(output_dir)
-    
-    # Step 2: Run FastSurfer via Docker
     run_fastsurfer_docker(
         subjects=subjects,
         input_dir=input_dir,
@@ -360,12 +324,6 @@ def preprocess_lab_data(input_dir: str = '/lab_data',
         freesurfer_license=freesurfer_license,
         n_threads=8
     )
-
-    # Step 3: Run FreeSurfer to add .aparc.stats files (optional)
-    if run_step_3:
-        run_freesurfer(subjects=subjects,
-        output_dir=output_dir,
-        freesurfer_license=freesurfer_license)
 
 
 # ================================

@@ -57,7 +57,7 @@ def preprocess_adhd200(
         print(f"Pre-processing subject: {subj}")
 
         # Run FastSurfer Docker command
-        run_fastsurfer_docker(subj, input_dir, output_dir, freesurfer_license, n_threads)
+        run_fastsurfer_docker([subj], input_dir, output_dir, freesurfer_license, n_threads)
 
 
 
@@ -106,12 +106,10 @@ def extract_aseg_stats(subject_id: str, subjects_path: str = None) -> Dict[str, 
     Returns:
         Dictionary of volume measurements
     """
-    stats_file = None
-    subjects_dir = Path(subjects_path)
     if not subjects_path:
-        stats_file = subjects_dir / subject_id / 'stats' / 'aseg.stats'
-    else:
-        stats_file = subjects_path / 'stats' / 'aseg.stats'
+        print(f"Warning: No path provided for {subject_id}, skipping aseg.stats")
+        return {}
+    stats_file = Path(subjects_path) / 'stats' / 'aseg.stats'
     volumes = {}
     
     if not stats_file.exists():
@@ -161,12 +159,10 @@ def extract_aparc_stats(subject_id: str, hemisphere: str, subjects_path: str = N
     Returns:
         Dictionary of thickness measurements
     """
-    stats_file = None
-    subjects_dir = Path(subjects_path)
     if not subjects_path:
-        stats_file = subjects_dir / subject_id / 'stats' / f'{hemisphere}.aparc.DKTatlas.stats'
-    else:
-        stats_file = subjects_path / 'stats' / f'{hemisphere}.aparc.DKTatlas.stats'
+        print(f"Warning: No path provided for {subject_id}, skipping aparc.stats")
+        return {}
+    stats_file = Path(subjects_path) / 'stats' / f'{hemisphere}.aparc.DKTatlas.stats'
     thickness = {}
     
     if not stats_file.exists():
@@ -221,7 +217,7 @@ def extract_all_measurements(subject_id: str, subject_path = None) -> Dict[str, 
 
 def run_outlier_analysis(data_path: str) -> Dict[str, List]:
     # Get measurements for self-subject
-    lab_data = extract_all_measurements("Karas_262199")
+    lab_data = extract_all_measurements("Karas_262199", data_path)
 
     # TODO: Change. Currently assumes CSV output format
     ref_df = pd.read_csv("./outside_data/hcp-ya/HCP_YA.csv").drop(

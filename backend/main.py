@@ -35,7 +35,7 @@ def main(choice):
                     print("Lab data directory not found. Cannot run analysis.")
                     sys.exit(1)
 
-                if (not os.path.exists("./processed_data/adhd_lab") or 
+                if (not os.path.exists("./processed_data/adhd_lab") or
                         not os.listdir("./processed_data/adhd_lab")):
                     preprocess_lab_data(
                         input_dir="./lab_data",
@@ -55,8 +55,7 @@ def main(choice):
                     preprocess_lab_data(
                         input_dir="./lab_data",
                         output_dir="./processed_data/outlier_lab",
-                        freesurfer_license=license_path,
-                        run_step_3=True
+                        freesurfer_license=license_path
                     )
                 else:
                     print("Skipped lab data preprocessing.")
@@ -64,7 +63,7 @@ def main(choice):
                 # Assume reference data is in ./outside_data/hcp-ya/HCP_YA.csv
                 
                 # Use extractor to get comparison results
-                percentiles = run_outlier_analysis(subjects_dir="./processed_data/outlier_lab")
+                percentiles = run_outlier_analysis(data_path="./processed_data/outlier_lab")
                 percentiles["thickness_percentiles"].sort(key=lambda x: x[1])
 
                 # Save percentiles to JSON file
