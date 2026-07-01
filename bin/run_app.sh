@@ -1,10 +1,15 @@
 #!/bin/bash
+set -e
 
-# Activate venv
-source venv/bin/activate
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+ROOT="$SCRIPT_DIR/.."
 
-# Start worker in background
-python worker.py &
+source "$ROOT/env/bin/activate"
 
-# Start FastAPI server
-uvicorn main:app --host 0.0.0.0 --port 8000
+cd "$ROOT/backend"
+
+# Local dev: in-process queue, local filesystem storage
+export STORAGE_BACKEND=local
+export QUEUE_BACKEND=local
+
+uvicorn app:app --host 0.0.0.0 --port 8000 --workers 1

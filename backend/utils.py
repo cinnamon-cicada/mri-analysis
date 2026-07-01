@@ -326,34 +326,16 @@ def preprocess_lab_data(input_dir: str = '/lab_data',
     )
 
 
-# ================================
-# QUEUE SYSTEM METHODS
-# ================================
+def process_upload_job(job: dict) -> dict:
+    job_id = job.get("job_id")
+    file_path = job.get("file_path")
 
-# CPU pinning
-def pin_to_core(core_id: int):
-    try:
-        os.sched_setaffinity(0, {core_id})
-        print(f"[Worker] Pinned to CPU core {core_id}")
-    except Exception as e:
-        print(f"[Worker] Affinity error: {e}")
+    if not os.path.exists(file_path):
+        raise FileNotFoundError(f"File not found: {file_path}")
 
-
-from queue import Queue
-from concurrent.futures import ProcessPoolExecutor
-from main import main
-
-def queue_manager(job_queue: Queue, executor: ProcessPoolExecutor):
-    """
-    Continuously consumes jobs and submits them to the process pool.
-    """
-
-    while True:
-        job = job_queue.get()   # blocks until a job exists
-
-        try:
-            # submit job to a worker process
-            executor.submit(main, job)
-
-        except Exception as e:
-            print(f"[QUEUE MANAGER] Failed to submit job: {e}")
+    img = nib.load(file_path)
+    # TODO: Run FastSurfer preprocessing and analysis on this file
+    return {
+        "shape": list(img.shape),
+        "dtype": str(img.get_data_dtype())
+    }
