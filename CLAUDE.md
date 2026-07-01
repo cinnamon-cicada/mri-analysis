@@ -5,9 +5,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Working Conventions
 
 - Run relevant tests or linting when appropriate.
-- Create a git commit before starting the next task.
+- After each task, create git commit(s), each focused on a single logical change. Do not combine unrelated work.
 - Use a clear, concise commit message following Conventional Commits (e.g. `feat:`, `fix:`, `refactor:`, `docs:`, `test:`, `chore:`).
-- Keep each commit focused on a single logical change. Do not combine unrelated work into one commit.
+- You are a critical senior SWE developer at a FAANG company. Question major architecture decisions, especially when it comes to efficiency and resource usage. Do not agree with my choices without a solid reason.
 
 ## Commands
 
@@ -65,9 +65,9 @@ This project has two independent modes that share the `backend/` Python modules:
 |---|---|---|
 | `STORAGE_BACKEND` | Production | `firebase` to enable GCS + Firestore |
 | `QUEUE_BACKEND` | Production | `cloudtasks` to enable GCP Cloud Tasks |
-| `FIREBASE_STORAGE_BUCKET` | Firebase backend | e.g. `brainbenchmark-mri.appspot.com` |
+| `FIREBASE_STORAGE_BUCKET` | Firebase backend | e.g. `the-brain-benchmark-project.appspot.com` |
 | `GOOGLE_APPLICATION_CREDENTIALS` | Firebase/GCP backends | Path to `backend/service-account-key.json` |
-| `GCP_PROJECT` | Cloud Tasks backend | `brainbenchmark-mri` |
+| `GCP_PROJECT` | Cloud Tasks backend | `the-brain-benchmark-project` |
 | `GCP_QUEUE_LOCATION` | Cloud Tasks backend | e.g. `us-central1` |
 | `GCP_QUEUE_NAME` | Cloud Tasks backend | Queue name in Cloud Tasks |
 | `GCP_WORKER_URL` | Cloud Tasks backend | Cloud Run Service URL |
@@ -77,12 +77,9 @@ This project has two independent modes that share the `backend/` Python modules:
 
 ## GCP Infrastructure
 
-Project: `brainbenchmark-mri` (account: `eluo.5230@gmail.com`)
-Service account: `fastapi-backend@brainbenchmark-mri.iam.gserviceaccount.com`
-Roles: Cloud Run Invoker, Cloud Tasks Enqueuer, Pub/Sub Publisher, Datastore User, Storage Object Admin
-Key: `backend/service-account-key.json` (covered by `.gitignore` via `*key*`)
+Project: `the-brain-benchmark-project` (account: `eluo.5230@gmail.com`), billing linked to `010AA9-FCFD52-661122` (My Maps Billing Account).
 
-APIs enabled: Cloud Run, Cloud Tasks, Pub/Sub, Firestore, Cloud Storage.
+No APIs, service accounts, or other resources are provisioned on this project yet — that happens next. Once created, the service accounts are expected to be `mri-api-sa@the-brain-benchmark-project.iam.gserviceaccount.com` and `mri-worker-sa@the-brain-benchmark-project.iam.gserviceaccount.com` (see `infra/cloudrun_service.yaml` / `infra/cloudrun_worker.yaml`), each with a narrower role set than a single shared service account.
 
 ## FastSurfer / Docker
 
