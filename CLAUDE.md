@@ -77,9 +77,21 @@ This project has two independent modes that share the `backend/` Python modules:
 
 ## GCP Infrastructure
 
-Project: `the-brain-benchmark-project` (account: `eluo.5230@gmail.com`), billing linked to `010AA9-FCFD52-661122` (My Maps Billing Account).
+Project: `the-brain-benchmark-project` (account: `eluo.5230@gmail.com`), billing linked to `010AA9-FCFD52-661122` (My Maps Billing Account). Also registered as a Firebase project.
 
-No APIs, service accounts, or other resources are provisioned on this project yet — that happens next. Once created, the service accounts are expected to be `mri-api-sa@the-brain-benchmark-project.iam.gserviceaccount.com` and `mri-worker-sa@the-brain-benchmark-project.iam.gserviceaccount.com` (see `infra/cloudrun_service.yaml` / `infra/cloudrun_worker.yaml`), each with a narrower role set than a single shared service account.
+APIs enabled: Cloud Run, Cloud Tasks, Pub/Sub, Firestore, Cloud Storage, Cloud Build, Artifact Registry, Secret Manager, Firebase.
+
+Provisioned resources:
+- Artifact Registry Docker repo `mri` (us-central1)
+- Firestore native database (us-central1)
+- Cloud Tasks queue `mri-jobs` (us-central1)
+- Secret `freesurfer-license` (contents of repo-root `license.txt`)
+- Service accounts:
+  - `mri-api-sa@the-brain-benchmark-project.iam.gserviceaccount.com` — roles: Run Invoker, Cloud Tasks Enqueuer, Datastore User
+  - `mri-worker-sa@the-brain-benchmark-project.iam.gserviceaccount.com` — roles: Storage Object Admin, Datastore User, Secret Manager Secret Accessor (incl. on `freesurfer-license`)
+- Firestore rules and Storage rules (`infra/firestore.rules`, `infra/storage.rules`) deployed via `firebase deploy --only firestore:rules,storage`
+
+Not yet done: `backend/service-account-key.json` (no key has been generated/downloaded for either service account yet — required for local `GOOGLE_APPLICATION_CREDENTIALS` use).
 
 ## FastSurfer / Docker
 
