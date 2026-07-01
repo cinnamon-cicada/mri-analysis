@@ -4,7 +4,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Working Conventions
 
-- Git commit after every distinct change, rather than batching unrelated changes into one commit.
+- Run relevant tests or linting when appropriate.
+- Create a git commit before starting the next task.
+- Use a clear, concise commit message following Conventional Commits (e.g. `feat:`, `fix:`, `refactor:`, `docs:`, `test:`, `chore:`).
+- Keep each commit focused on a single logical change. Do not combine unrelated work into one commit.
 
 ## Commands
 
