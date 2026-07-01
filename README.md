@@ -17,32 +17,49 @@ An analysis on my brain, and potential app. Check it out!
 
 ## Dataset
 
-This project includes MRI scan data from subject cinnamon-cicada, containing multiple sequences acquired during a single scanning session:
+### Input Data (`lab_data/`)
 
-### Data Files
+Raw subject data is organized under `lab_data/` in BIDS-compatible format:
 
-The `Data/` directory contains the following MRI sequences:
+```
+lab_data/
+└── Karas_262199
+    ├── anat
+    │   ├── Karas_262199_T1w.json
+    │   ├── Karas_262199_T1w.nii
+    │   └── Karas_262199_T1w.nii.gz
+    └── func
+        ├── Karas_262199_task-rest_run-01_bold.json
+        ├── Karas_262199_task-rest_run-01_bold.nii
+        ├── Karas_262199_task-rest_run-02_bold.json
+        ├── Karas_262199_task-rest_run-02_bold.nii
+        ├── Karas_262199_task-rest_run-03_bold.json
+        └── Karas_262199_task-rest_run-03_bold.nii
+```
 
-| Sequence | Description | Files |
-|----------|-------------|-------|
-| **Survey** | Initial survey/localizer scan | `cinnamon-cicada.01.01.08-11-13.WIP_SURVEY.01.nii/.json` |
-| **T1-weighted 3D** | High-resolution structural scan (cs_2.8_T1W_3D_TFE) | `cinnamon-cicada.02.01.08-12-58.WIP_cs_2.8_T1W_3D_TFE.01.nii/.json` |
-| **fMRI Task v0 (Run 1)** | Functional MRI with TR=1000ms | `cinnamon-cicada.03.01.08-18-02.WIP_fMRI_task_v0_TR1000.01.nii/.json` |
-| **fMRI Task v0 (Run 2)** | Functional MRI with TR=1000ms | `cinnamon-cicada.05.01.08-40-45.WIP_fMRI_task_v0_TR1000.01.nii/.json` |
-| **fMRI Task v0 (Run 3)** | Functional MRI with TR=1000ms | `cinnamon-cicada.06.01.08-50-26.WIP_fMRI_task_v0_TR1000.01.nii/.json` |
+### Output Data (`processed_data/`)
+
+FastSurfer outputs are written to `processed_data/outlier_lab/` per subject:
+
+```
+processed_data/outlier_lab/
+└── Karas_262199
+    ├── label/          # Cortical parcellation labels and annotation files
+    ├── mri/            # Volumetric outputs (T1.mgz, brain.mgz, aseg.mgz, etc.)
+    ├── scripts/        # Processing logs and configuration (build.log, recon-all.log)
+    ├── stats/          # Region statistics (aseg.stats, aparc.DKTatlas.stats, etc.)
+    ├── surf/           # Surface files (lh/rh .pial, .white, .area, etc.)
+    ├── touch/          # Stage completion markers
+    ├── tmp/
+    └── trash/
+```
 
 ### File Formats
 
-- **`.nii` files**: NIfTI format containing the actual MRI image data
-- **`.json` files**: BIDS-style sidecar files with acquisition parameters and metadata
-
-### Data Specifications
-
-- **Subject ID**: cinnamon-cicada
-- **Scanner**: Philips
-- **Functional runs**: 3 task-based fMRI sessions
-- **Repetition Time (TR)**: 1000ms for fMRI sequences
-- **File naming**: BIDS-compatible structure with timestamp information
+- **`.nii` / `.nii.gz`**: NIfTI format MRI image data
+- **`.json`**: BIDS sidecar files with acquisition parameters and metadata
+- **`.mgz`**: FreeSurfer compressed volume format
+- **`.stats`**: FreeSurfer region-of-interest statistics tables
 
 ### Outside Data Sources
 - ADHD-200: http://fcon_1000.projects.nitrc.org/indi/adhd200/
