@@ -1,0 +1,11 @@
+env/
+venv/
+__pycache__/
+*.pyc
+.env
+uploads/
+processed_data/
+outside_data/
+lab_data/
+archive/
+backend/service-account-key.json
