@@ -55,6 +55,7 @@ class CloudTasksQueue(QueueBackend):
             os.environ["GCP_QUEUE_NAME"],
         )
         self._worker_url = os.environ["GCP_WORKER_URL"]
+        self._api_sa_email = os.environ["GCP_API_SA_EMAIL"]
 
     async def enqueue(self, job_id: str, file_ref: str) -> None:
         payload = json.dumps({"job_id": job_id, "file_ref": file_ref}).encode()
@@ -64,6 +65,9 @@ class CloudTasksQueue(QueueBackend):
                 "url": f"{self._worker_url}/run",
                 "headers": {"Content-Type": "application/json"},
                 "body": payload,
+                "oidc_token": {
+                    "service_account_email": self._api_sa_email,
+                },
             }
         }
         await asyncio.to_thread(
