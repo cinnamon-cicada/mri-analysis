@@ -1,0 +1,8 @@
+{
+  "_note": "Placeholder — run generate_stats.py against processed ADHD-200 data to populate.",
+  "source": "ADHD-200 dataset",
+  "n_subjects": 0,
+  "generated_at": null,
+  "volumes": {},
+  "thickness": {}
+}
