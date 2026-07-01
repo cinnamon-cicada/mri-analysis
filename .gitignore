@@ -8,8 +8,12 @@ env/*
 *__pycache__/*
 *key*
 *_key*
+*.pem
 ubuntu@*
 
 ADHD200_download_links.sh
 .env
 license.txt
+uploads/
+tmp/
+analysis_app/

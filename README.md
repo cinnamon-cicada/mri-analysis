@@ -154,8 +154,11 @@ Examples:
   ./run.sh 1 1 2          # Run analysis 1 twice, then analysis 2
 
 
-# Run the application
+# Run the analysis via terminal
 python scripts/main.py
+
+# Launch the app to run analysis
+uvicorn app:app --workers 1
 ```
 
 ## Built With
