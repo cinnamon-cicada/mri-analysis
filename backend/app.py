@@ -1,3 +1,4 @@
+import time
 import uuid
 from contextlib import asynccontextmanager
 
@@ -57,7 +58,10 @@ async def upload(request: Request, file: UploadFile = File(...)):
     data = await file.read()
 
     file_ref = storage.store_file(job_id, data)
-    storage.set_job(job_id, {"status": "queued"})
+    # file_ref/created_at are read back by the Firestore-triggered dispatcher
+    # (dispatcher.py), which has no other way to learn which file a queued
+    # job refers to or which queued job is oldest.
+    storage.set_job(job_id, {"status": "queued", "file_ref": file_ref, "created_at": time.time()})
 
     await get_queue().enqueue(job_id, file_ref)
 

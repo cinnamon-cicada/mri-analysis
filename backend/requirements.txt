@@ -1,0 +1,5 @@
+# Deps for the dispatcher Cloud Function only (deployed with --source=backend).
+# The FastAPI app / worker / batch pipeline use the repo-root requirements.txt.
+functions-framework>=3.5.0
+google-cloud-firestore>=2.16.0
+google-cloud-run>=0.10.0

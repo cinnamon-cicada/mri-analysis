@@ -28,7 +28,7 @@ class StorageBackend(ABC):
 
     @abstractmethod
     def set_job(self, job_id: str, data: dict) -> None:
-        """Write job metadata."""
+        """Merge fields into job metadata (does not clobber unset fields)."""
 
     @abstractmethod
     def get_results(self, job_id: str) -> dict | None:
@@ -72,7 +72,7 @@ class LocalStorage(StorageBackend):
         return self._jobs.get(job_id)
 
     def set_job(self, job_id: str, data: dict) -> None:
-        self._jobs[job_id] = data
+        self._jobs.setdefault(job_id, {}).update(data)
 
     def get_results(self, job_id: str) -> dict | None:
         path = self._results_dir / f"{job_id}.json"
@@ -119,7 +119,7 @@ class FirebaseStorage(StorageBackend):
         return doc.to_dict() if doc.exists else None
 
     def set_job(self, job_id: str, data: dict) -> None:
-        self._db.collection("jobs").document(job_id).set(data)
+        self._db.collection("jobs").document(job_id).set(data, merge=True)
 
     def get_results(self, job_id: str) -> dict | None:
         doc = self._db.collection("results").document(job_id).get()
