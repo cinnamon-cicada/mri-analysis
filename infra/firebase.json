@@ -2,7 +2,9 @@
   "hosting": {
     "public": "../frontend",
     "ignore": ["firebase.json", "**/.*", "**/node_modules/**"],
+    "cleanUrls": true,
     "rewrites": [
+      { "source": "/api/**",        "run": { "serviceId": "mri-api", "region": "us-central1" } },
       { "source": "/upload",        "run": { "serviceId": "mri-api", "region": "us-central1" } },
       { "source": "/status/**",     "run": { "serviceId": "mri-api", "region": "us-central1" } },
       { "source": "/results/**",    "run": { "serviceId": "mri-api", "region": "us-central1" } },
