@@ -24,14 +24,28 @@ spec:
                   value: the-brain-benchmark-project.firebasestorage.app
                 - name: FASTSURFER_OUTPUT_DIR
                   value: /tmp/fastsurfer_output
+                # FastSurfer / FreeSurfer expect a license *file*, not the
+                # license text — mount the secret as a file (below) and point
+                # FREESURFER_LICENSE at that path. utils.py derives FS_LICENSE
+                # from it for the native run.
                 - name: FREESURFER_LICENSE
-                  valueFrom:
-                    secretKeyRef:
-                      name: freesurfer-license
-                      key: license
+                  value: /secrets/freesurfer/license.txt
+              volumeMounts:
+                - name: freesurfer-license
+                  mountPath: /secrets/freesurfer
+                  readOnly: true
               resources:
                 limits:
                   cpu: "8"
                   memory: 16Gi
                   # Uncomment for GPU:
                   # nvidia.com/gpu: "1"
+          volumes:
+            - name: freesurfer-license
+              secret:
+                secretName: freesurfer-license
+                items:
+                  # `key` is the secret *version* (latest resolves the newest);
+                  # `path` is the filename created under mountPath above.
+                  - key: latest
+                    path: license.txt
