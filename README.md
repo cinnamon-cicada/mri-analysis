@@ -78,9 +78,9 @@ processed_data/outlier_lab/
 
 ## Installation
 
-### FreeSurfer Setup (via Docker)
+### FastSurfer Setup (via Docker)
 
-This project uses FreeSurfer for structural MRI analysis. The library is run through Docker to avoid dependency issues.
+This project uses FastSurfer for structural MRI analysis. The library is run through Docker to avoid dependency issues.
 
 #### 1. Install Docker
 ```bash
@@ -104,13 +104,13 @@ newgrp docker
 docker --version
 ```
 
-#### 2. Pull FreeSurfer Docker Image
+#### 2. Pull FastSurfer Docker Image
 ```bash
-# Pull FreeSurfer 7.4.1 container
-docker pull freesurfer/freesurfer:7.4.1
+# Pull FastSurfer container
+docker pull deepmi/fastsurfer:latest
 
 # Verify the image was downloaded
-docker images | grep freesurfer
+docker images | grep fastsurfer
 ```
 
 #### 3. Get FreeSurfer License (Free)
@@ -144,38 +144,20 @@ source env/bin/activate
 pip install --upgrade pip
 pip install -r requirements.txt
 
-# Make bash script executable
-chmod +x ./bin/run.sh
+# Make run script executable
+chmod +x ./bin/run_app.sh
 
 ```
 
 ## Usage
-// WIP
 ```bash
-Usage:
-  ./run.sh [OPTIONS] [ANALYSIS_NUMBERS...]
+# Run the batch analysis pipeline (venv active)
+cd backend && python main.py 1      # ADHD-200 comparison
+cd backend && python main.py 2      # Outlier/uniqueness vs HCP-YA
+cd backend && python main.py 1 2    # Both in sequence
 
-Options:
-  --test       Run in test mode (downloads sample data instead of full)
-  --help       Show this help message
-
-Analysis Numbers:
-  1            Run ADHD analysis (uses ADHD-200 dataset)
-  2            Run uniqueness analysis (uses HCP-YA dataset)
-  3            Reserved for future use
-
-Examples:
-  ./run.sh 1              # Run analysis 1, download ADHD-200 if needed
-  ./run.sh --test 1 2     # Run analyses 1 and 2 in test mode
-  ./run.sh 2 1            # Run analysis 2 then analysis 1
-  ./run.sh 1 1 2          # Run analysis 1 twice, then analysis 2
-
-
-# Run the analysis via terminal
-python scripts/main.py
-
-# Launch the app to run analysis
-uvicorn app:app --workers 1
+# Launch the web app locally
+./bin/run_app.sh
 ```
 
 ## Built With
@@ -185,7 +167,8 @@ uvicorn app:app --workers 1
 - [NiBabel](https://nipy.org/nibabel/) - Neuroimaging file I/O
 - [SciPy](https://scipy.org/) - Scientific computing
 - [Matplotlib](https://matplotlib.org/) - Plotting library
-- [FreeSurfer](https://surfer.nmr.mgh.harvard.edu/) - Structural MRI analysis (via Docker)
+- [FastSurfer](https://github.com/Deep-MI/FastSurfer) - Structural MRI analysis (via Docker)
+- [FastAPI](https://fastapi.tiangolo.com/) - Web app framework
 - [Docker](https://www.docker.com/) - Container platform
 
 ## License
