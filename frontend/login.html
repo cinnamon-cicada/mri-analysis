@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Sign in — MRI Brain Analysis</title>
+  <link rel="stylesheet" href="/static/style.css" />
+</head>
+<body>
+
+  <div class="screen active">
+    <div class="card">
+      <h1 id="authTitle">Sign in</h1>
+      <p class="subtitle">Sign in to see your saved brain analysis results.</p>
+
+      <form id="authForm" class="auth-form">
+        <label class="field-label" for="email">Email</label>
+        <input class="input" type="email" id="email" autocomplete="email" required />
+
+        <label class="field-label" for="password">Password</label>
+        <input class="input" type="password" id="password" autocomplete="current-password" required />
+
+        <button class="btn" id="submitBtn" type="submit">Sign in</button>
+      </form>
+
+      <p class="muted auth-toggle">
+        <span id="togglePrompt">Don't have an account?</span>
+        <a href="#" id="toggleLink">Create one</a>
+      </p>
+
+      <div id="authError" class="error hidden"></div>
+    </div>
+  </div>
+
+  <script type="module" src="/static/login.js"></script>
+</body>
+</html>

@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>My Account — MRI Brain Analysis</title>
+  <link rel="stylesheet" href="/static/style.css" />
+</head>
+<body>
+
+  <div class="screen active">
+    <div class="card wide">
+      <h1>My Account</h1>
+
+      <div id="loading" class="muted">Loading your account…</div>
+
+      <div id="account" class="hidden">
+        <p class="subtitle">
+          Signed in as <span id="userEmail" class="email"></span>
+        </p>
+
+        <div class="account-actions">
+          <a class="btn" href="/">Analyze a new scan</a>
+          <button class="btn secondary" id="signOutBtn">Sign out</button>
+        </div>
+
+        <h2 class="section-title">Your latest results</h2>
+        <p class="subtitle disclaimer">
+          Percentile rankings compare each region against the reference
+          population. This is not a clinical diagnosis.
+        </p>
+        <div id="noResults" class="muted hidden">
+          No results yet — upload a scan to see your percentiles here.
+        </div>
+        <div id="results" class="chart"></div>
+      </div>
+    </div>
+  </div>
+
+  <script type="module" src="/static/self.js"></script>
+</body>
+</html>

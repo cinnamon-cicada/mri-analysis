@@ -183,6 +183,45 @@ h1 {
   margin-bottom: 24px;
 }
 
+/* --- Auth form (login page) --- */
+.auth-form { display: flex; flex-direction: column; text-align: left; }
+.auth-form .field-label { margin-top: 4px; }
+
+.input {
+  width: 100%;
+  background: var(--bg);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 9px 12px;
+  font-size: 0.9rem;
+  margin-bottom: 16px;
+}
+.input:focus { outline: none; border-color: var(--accent); }
+
+.auth-form .btn { margin-top: 8px; }
+
+.auth-toggle { text-align: center; }
+.auth-toggle a { color: var(--accent); text-decoration: none; }
+.auth-toggle a:hover { text-decoration: underline; }
+
+/* --- Account page (/self) --- */
+.email { color: var(--text); font-weight: 500; }
+
+.account-actions {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 28px;
+}
+.account-actions .btn { width: auto; margin-top: 0; }
+
+.section-title {
+  font-size: 1.1rem;
+  font-weight: 600;
+  margin: 8px 0 6px;
+  color: var(--text);
+}
+
 /* --- Histogram (population count distribution) --- */
 .hist-plot {
   display: flex;
