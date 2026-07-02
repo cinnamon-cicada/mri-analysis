@@ -59,8 +59,13 @@ uploadBtn.addEventListener('click', async () => {
   let jobId;
   try {
     const res = await fetch('/upload', { method: 'POST', body: formData });
-    if (!res.ok) throw new Error(`Upload failed (${res.status})`);
     const data = await res.json();
+    if (!res.ok) {
+      if (res.status === 503 && data.error === 'capacity') {
+        throw new Error(data.message);
+      }
+      throw new Error(`Upload failed (${res.status})`);
+    }
     jobId = data.job_id;
   } catch (err) {
     showError(err.message);

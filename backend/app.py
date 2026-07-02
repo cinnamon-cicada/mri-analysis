@@ -46,10 +46,16 @@ async def healthz():
 @app.post("/upload")
 @limiter.limit("5/minute")
 async def upload(request: Request, file: UploadFile = File(...)):
+    storage = get_storage()
+    if storage.count_active_jobs() >= 5:
+        return JSONResponse(
+            {"error": "capacity", "message": "Please upload later due to reaching server capacity."},
+            status_code=503,
+        )
+
     job_id = str(uuid.uuid4())
     data = await file.read()
 
-    storage = get_storage()
     file_ref = storage.store_file(job_id, data)
     storage.set_job(job_id, {"status": "queued"})
 

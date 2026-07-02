@@ -20,10 +20,17 @@ class QueueBackend(ABC):
 
 
 class LocalQueue(QueueBackend):
-    """Runs the worker in the background on the same process via asyncio."""
+    """Runs the worker in the background on the same process via asyncio.
+
+    Caps FastSurfer runs at 2 concurrent, matching the production dispatcher's
+    slot limit — jobs beyond that sit at status "queued" until a slot frees.
+    """
 
     async def enqueue(self, job_id: str, file_ref: str) -> None:
         asyncio.create_task(_run_local(job_id, file_ref))
+
+
+_local_semaphore = asyncio.Semaphore(2)
 
 
 async def _run_local(job_id: str, file_ref: str) -> None:
@@ -31,13 +38,14 @@ async def _run_local(job_id: str, file_ref: str) -> None:
     from worker import process_job
 
     storage = get_storage()
-    storage.set_job(job_id, {"status": "processing"})
-    try:
-        result = await asyncio.to_thread(process_job, job_id, file_ref)
-        storage.set_results(job_id, result)
-        storage.set_job(job_id, {"status": "completed"})
-    except Exception as e:
-        storage.set_job(job_id, {"status": "failed", "error": str(e)})
+    async with _local_semaphore:
+        storage.set_job(job_id, {"status": "processing"})
+        try:
+            result = await asyncio.to_thread(process_job, job_id, file_ref)
+            storage.set_results(job_id, result)
+            storage.set_job(job_id, {"status": "completed"})
+        except Exception as e:
+            storage.set_job(job_id, {"status": "failed", "error": str(e)})
 
 
 class CloudTasksQueue(QueueBackend):

@@ -38,6 +38,13 @@ class StorageBackend(ABC):
     def set_results(self, job_id: str, data: dict) -> None:
         """Write completed job results."""
 
+    @abstractmethod
+    def count_active_jobs(self) -> int:
+        """Count jobs whose status is 'queued' or 'processing'."""
+
+
+_ACTIVE_STATUSES = ("queued", "processing")
+
 
 class LocalStorage(StorageBackend):
     """In-process backend for local development. Not safe for multi-process deployments."""
@@ -74,6 +81,9 @@ class LocalStorage(StorageBackend):
     def set_results(self, job_id: str, data: dict) -> None:
         path = self._results_dir / f"{job_id}.json"
         path.write_text(json.dumps(data))
+
+    def count_active_jobs(self) -> int:
+        return sum(1 for job in self._jobs.values() if job.get("status") in _ACTIVE_STATUSES)
 
 
 class FirebaseStorage(StorageBackend):
@@ -117,6 +127,11 @@ class FirebaseStorage(StorageBackend):
 
     def set_results(self, job_id: str, data: dict) -> None:
         self._db.collection("results").document(job_id).set(data)
+
+    def count_active_jobs(self) -> int:
+        query = self._db.collection("jobs").where("status", "in", list(_ACTIVE_STATUSES))
+        result = query.count().get()
+        return result[0][0].value
 
 
 _backend: StorageBackend | None = None
