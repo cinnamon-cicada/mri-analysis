@@ -2,7 +2,7 @@ import time
 import uuid
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, File, Header, Request, UploadFile
+from fastapi import FastAPI, File, Header, HTTPException, Request, UploadFile
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -19,7 +19,48 @@ import os
 
 limiter = Limiter(key_func=get_remote_address)
 
+# Hard cap on an uploaded scan, matching infra/storage.rules. Enforced by
+# reading the body in chunks so an oversized (or unbounded/chunked) upload is
+# rejected before it can exhaust the API process's memory.
+MAX_UPLOAD_BYTES = 200 * 1024 * 1024
+
 FRONTEND_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "frontend")
+
+
+async def _read_capped(file: UploadFile, limit: int) -> bytes | None:
+    """Read the whole upload, or return None once it exceeds `limit` bytes.
+
+    Bounds peak memory at ~limit regardless of Content-Length (which may be
+    absent or spoofed on a chunked request), so it's a real DoS guard rather
+    than a post-hoc size check on an already-buffered body.
+    """
+    chunks = []
+    total = 0
+    while True:
+        chunk = await file.read(1024 * 1024)
+        if not chunk:
+            break
+        total += len(chunk)
+        if total > limit:
+            return None
+        chunks.append(chunk)
+    return b"".join(chunks)
+
+
+def _authorize_job_access(job: dict, authorization: str | None) -> None:
+    """Gate access to a job's status/results.
+
+    Anonymous jobs (no `uid`) are protected only by the unguessable UUID job
+    id, preserving the anonymous-upload flow. A job tied to a signed-in user
+    additionally requires that user's own bearer token — otherwise anyone
+    holding the id could read that user's results.
+    """
+    owner = job.get("uid")
+    if owner is None:
+        return
+    claims = verify_bearer_token(authorization)
+    if claims.get("uid") != owner:
+        raise HTTPException(status_code=403, detail="forbidden")
 
 
 @asynccontextmanager
@@ -104,6 +145,9 @@ async def population_segments():
 
 @app.get("/api/population/distribution/{segment}")
 async def population_distribution(segment: str, bins: int = 20):
+    # Clamp bins from the query string: an unbounded value makes np.histogram
+    # allocate an enormous array (memory/CPU DoS), and <1 raises ValueError.
+    bins = max(1, min(bins, 200))
     try:
         return get_population_distribution(segment, bins=bins)
     except KeyError:
@@ -131,7 +175,12 @@ async def upload(
         job_doc["uid"] = verify_bearer_token(authorization)["uid"]
 
     job_id = str(uuid.uuid4())
-    data = await file.read()
+    data = await _read_capped(file, MAX_UPLOAD_BYTES)
+    if data is None:
+        return JSONResponse(
+            {"error": "too_large", "message": "File exceeds the 200 MB limit."},
+            status_code=413,
+        )
 
     file_ref = storage.store_file(job_id, data)
     # file_ref/created_at are read back by the Firestore-triggered dispatcher
@@ -146,19 +195,21 @@ async def upload(
 
 
 @app.get("/status/{job_id}")
-async def get_status(job_id: str):
+async def get_status(job_id: str, authorization: str | None = Header(default=None)):
     job = get_storage().get_job(job_id)
     if job is None:
         return JSONResponse({"status": "not_found"}, status_code=404)
+    _authorize_job_access(job, authorization)
     return JSONResponse(job)
 
 
 @app.get("/results/{job_id}")
-async def get_results(job_id: str):
+async def get_results(job_id: str, authorization: str | None = Header(default=None)):
     storage = get_storage()
     job = storage.get_job(job_id)
     if job is None:
         return JSONResponse({"error": "job not found"}, status_code=404)
+    _authorize_job_access(job, authorization)
     if job.get("status") != "completed":
         return JSONResponse({"error": "results not ready", "status": job.get("status")}, status_code=202)
     results = storage.get_results(job_id)
