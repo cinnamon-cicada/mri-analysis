@@ -172,31 +172,22 @@ h1 {
   margin-bottom: 6px;
 }
 
-.select {
+/* Text inputs and selects share a field style; padding/margin differ. */
+.select, .input {
   width: 100%;
   background: var(--bg);
   color: var(--text);
   border: 1px solid var(--border);
   border-radius: 6px;
-  padding: 8px 12px;
   font-size: 0.9rem;
-  margin-bottom: 24px;
 }
+.select { padding: 8px 12px; margin-bottom: 24px; }
 
 /* --- Auth form (login page) --- */
 .auth-form { display: flex; flex-direction: column; text-align: left; }
 .auth-form .field-label { margin-top: 4px; }
 
-.input {
-  width: 100%;
-  background: var(--bg);
-  color: var(--text);
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  padding: 9px 12px;
-  font-size: 0.9rem;
-  margin-bottom: 16px;
-}
+.input { padding: 9px 12px; margin-bottom: 16px; }
 .input:focus { outline: none; border-color: var(--accent); }
 
 .auth-form .btn { margin-top: 8px; }
@@ -301,9 +292,8 @@ h1 {
   transition: width 0.5s ease;
 }
 
-/* Color-code by percentile range */
+/* Color-code by percentile range (.mid uses the .bar-fill default) */
 .bar-fill.high  { background: var(--bar-high); }
-.bar-fill.mid   { background: var(--bar-mid); }
 .bar-fill.low   { background: var(--bar-low); }
 
 .bar-value {
