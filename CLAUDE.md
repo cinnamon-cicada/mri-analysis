@@ -87,11 +87,10 @@ Provisioned resources:
 - Cloud Tasks queue `mri-jobs` (us-central1)
 - Secret `freesurfer-license` (contents of repo-root `license.txt`)
 - Service accounts:
-  - `mri-api-sa@the-brain-benchmark-project.iam.gserviceaccount.com` — roles: Run Invoker, Cloud Tasks Enqueuer, Datastore User
+  - `mri-api-sa@the-brain-benchmark-project.iam.gserviceaccount.com` — roles: Run Invoker, Cloud Tasks Enqueuer, Datastore User, Storage Object Creator (needed because `POST /upload` calls `FirebaseStorage.store_file()` directly from the API process — the original plan omitted this and uploads would 403)
   - `mri-worker-sa@the-brain-benchmark-project.iam.gserviceaccount.com` — roles: Storage Object Admin, Datastore User, Secret Manager Secret Accessor (incl. on `freesurfer-license`)
 - Firestore rules and Storage rules (`infra/firestore.rules`, `infra/storage.rules`) deployed via `firebase deploy --only firestore:rules,storage`
-
-Not yet done: `backend/service-account-key.json` (no key has been generated/downloaded for either service account yet — required for local `GOOGLE_APPLICATION_CREDENTIALS` use).
+- `backend/service-account-key.json` — a downloaded key for `mri-api-sa`, gitignored. Verified it authenticates and (post-fix) can write to the Storage bucket.
 
 ## FastSurfer / Docker
 
