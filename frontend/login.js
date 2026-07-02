@@ -1,9 +1,8 @@
-import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import {
-  getAuth,
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+import { showError, hideError, initFirebaseAuth } from "./utils.js";
 
 const form = document.getElementById("authForm");
 const emailInput = document.getElementById("email");
@@ -17,30 +16,18 @@ const errorBox = document.getElementById("authError");
 let mode = "signin"; // or "signup"
 let auth = null;
 
-function showError(msg) {
-  errorBox.textContent = msg;
-  errorBox.classList.remove("hidden");
-}
-
-function clearError() {
-  errorBox.classList.add("hidden");
-}
-
 async function init() {
-  const res = await fetch("/api/firebase-config");
-  if (!res.ok) {
+  auth = await initFirebaseAuth();
+  if (!auth) {
     form.classList.add("hidden");
     toggleLink.classList.add("hidden");
-    showError("Sign-in is not configured on this server yet.");
-    return;
+    showError(errorBox, "Sign-in is not configured on this server yet.");
   }
-  const config = await res.json();
-  auth = getAuth(initializeApp(config));
 }
 
 function setMode(next) {
   mode = next;
-  clearError();
+  hideError(errorBox);
   if (mode === "signup") {
     title.textContent = "Create account";
     submitBtn.textContent = "Create account";
@@ -64,7 +51,7 @@ toggleLink.addEventListener("click", (e) => {
 form.addEventListener("submit", async (e) => {
   e.preventDefault();
   if (!auth) return;
-  clearError();
+  hideError(errorBox);
   submitBtn.disabled = true;
   const email = emailInput.value.trim();
   const password = passwordInput.value;
@@ -76,7 +63,7 @@ form.addEventListener("submit", async (e) => {
     }
     window.location.href = "/self";
   } catch (err) {
-    showError(err.message || "Authentication failed.");
+    showError(errorBox, err.message || "Authentication failed.");
     submitBtn.disabled = false;
   }
 });

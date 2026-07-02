@@ -1,5 +1,7 @@
 /* MRI Brain Analysis — frontend logic */
 
+import { showError, hideError, renderBarChart } from "./utils.js";
+
 const POLL_INTERVAL_MS = 5000;
 
 // --- Screen transitions ---
@@ -33,16 +35,8 @@ function onFileSelected(file) {
   const ok = file.name.endsWith('.nii') || file.name.endsWith('.nii.gz');
   dropLabel.textContent = file.name;
   uploadBtn.disabled = !ok;
-  if (!ok) showError('Only .nii or .nii.gz files are accepted.');
-  else clearError();
-}
-
-function showError(msg) {
-  uploadError.textContent = msg;
-  uploadError.classList.remove('hidden');
-}
-function clearError() {
-  uploadError.classList.add('hidden');
+  if (!ok) showError(uploadError, 'Only .nii or .nii.gz files are accepted.');
+  else hideError(uploadError);
 }
 
 // --- Upload ---
@@ -50,7 +44,7 @@ uploadBtn.addEventListener('click', async () => {
   const file = fileInput.files[0];
   if (!file) return;
 
-  clearError();
+  hideError(uploadError);
   uploadBtn.disabled = true;
 
   const formData = new FormData();
@@ -68,7 +62,7 @@ uploadBtn.addEventListener('click', async () => {
     }
     jobId = data.job_id;
   } catch (err) {
-    showError(err.message);
+    showError(uploadError, err.message);
     uploadBtn.disabled = false;
     return;
   }
@@ -101,7 +95,7 @@ function pollStatus(jobId) {
       } else if (data.status === 'failed') {
         clearInterval(timer);
         show('screen-upload');
-        showError(`Analysis failed: ${data.error || 'unknown error'}`);
+        showError(uploadError, `Analysis failed: ${data.error || 'unknown error'}`);
         uploadBtn.disabled = false;
       }
     } catch (_) {
@@ -121,30 +115,12 @@ async function loadResults(jobId) {
 
 function renderChart(containerId, rows) {
   const container = document.getElementById(containerId);
-  container.innerHTML = '';
-
   if (!rows.length) {
+    container.innerHTML = '';
     container.textContent = 'No data available.';
     return;
   }
-
-  rows.forEach(([label, value]) => {
-    const pct = value == null ? null : Math.round(value * 100);
-    const displayPct = pct == null ? '—' : `${pct}th`;
-    const fillPct = pct ?? 0;
-    const tier = pct == null ? '' : pct >= 70 ? 'high' : pct >= 30 ? 'mid' : 'low';
-
-    const row = document.createElement('div');
-    row.className = 'bar-row';
-    row.innerHTML = `
-      <span class="bar-label" title="${label}">${label}</span>
-      <div class="bar-track">
-        <div class="bar-fill ${tier}" style="width:${fillPct}%"></div>
-      </div>
-      <span class="bar-value">${displayPct}</span>
-    `;
-    container.appendChild(row);
-  });
+  renderBarChart(container, rows, pct => `${pct}th`);
 }
 
 // --- Tabs ---
@@ -162,6 +138,6 @@ document.getElementById('restartBtn').addEventListener('click', () => {
   fileInput.value = '';
   dropLabel.textContent = 'Drop your .nii.gz file here, or click to browse';
   uploadBtn.disabled = true;
-  clearError();
+  hideError(uploadError);
   show('screen-upload');
 });

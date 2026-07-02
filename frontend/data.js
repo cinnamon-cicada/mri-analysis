@@ -1,5 +1,7 @@
 /* Population statistics page — segment dropdown + count-distribution histogram */
 
+import { showError as showErrorBox, hideError } from './utils.js';
+
 const segmentSelect = document.getElementById('segmentSelect');
 const histogramEl = document.getElementById('histogram');
 const histError = document.getElementById('histError');
@@ -26,7 +28,7 @@ async function loadSegments() {
 }
 
 async function loadDistribution(segment) {
-  clearError();
+  hideError(histError);
   try {
     const res = await fetch(`/api/population/distribution/${encodeURIComponent(segment)}`);
     if (!res.ok) throw new Error(`Failed to load distribution (${res.status})`);
@@ -61,15 +63,8 @@ function renderHistogram(data) {
 
 function showError(msg) {
   histogramEl.innerHTML = '';
-  histYMax.textContent = '';
-  histYMin.textContent = '';
-  histXMin.textContent = '';
-  histXMax.textContent = '';
-  histError.textContent = msg;
-  histError.classList.remove('hidden');
-}
-function clearError() {
-  histError.classList.add('hidden');
+  for (const el of [histYMax, histYMin, histXMin, histXMax]) el.textContent = '';
+  showErrorBox(histError, msg);
 }
 
 segmentSelect.addEventListener('change', () => loadDistribution(segmentSelect.value));
