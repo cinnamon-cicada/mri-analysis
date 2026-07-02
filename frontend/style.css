@@ -26,6 +26,25 @@ body {
   padding: 24px;
 }
 
+/* --- Profile icon --- */
+.profile-icon {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--muted);
+  transition: border-color 0.2s, color 0.2s;
+}
+.profile-icon:hover { border-color: var(--accent); color: var(--accent); }
+.profile-icon svg { width: 18px; height: 18px; }
+
 /* --- Screens --- */
 .screen { display: none; width: 100%; justify-content: center; }
 .screen.active { display: flex; }
