@@ -10,6 +10,7 @@ from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from slowapi.util import get_remote_address
 
+from analysis import get_population_distribution, list_population_segments
 from queue_system import get_queue
 from storage import get_storage
 
@@ -38,10 +39,27 @@ if os.path.isdir(FRONTEND_DIR):
     async def home(request: Request):
         return templates.TemplateResponse(request, "home.html")
 
+    @app.get("/data")
+    async def data_page(request: Request):
+        return templates.TemplateResponse(request, "data.html")
+
 
 @app.get("/healthz")
 async def healthz():
     return {"status": "ok"}
+
+
+@app.get("/api/population/segments")
+async def population_segments():
+    return list_population_segments()
+
+
+@app.get("/api/population/distribution/{segment}")
+async def population_distribution(segment: str, bins: int = 20):
+    try:
+        return get_population_distribution(segment, bins=bins)
+    except KeyError:
+        return JSONResponse({"error": "unknown segment"}, status_code=404)
 
 
 @app.post("/upload")

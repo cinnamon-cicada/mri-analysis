@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Population Statistics — MRI Brain Analysis</title>
+  <link rel="stylesheet" href="/static/style.css" />
+</head>
+<body>
+
+  <a href="/self" class="profile-icon" aria-label="Account" title="Account">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <circle cx="12" cy="8" r="4"></circle>
+      <path d="M4 21c0-4.4 3.6-8 8-8s8 3.6 8 8"></path>
+    </svg>
+  </a>
+
+  <div class="screen active">
+    <div class="card wide">
+      <h1>Population Statistics</h1>
+      <p class="subtitle">
+        These distributions come from the HCP-YA general population reference dataset
+        (N=889) — the same dataset your percentile rankings are computed against. Pick
+        a brain segment below to see how its values are spread across that population.
+      </p>
+
+      <label class="field-label" for="segmentSelect">Brain segment</label>
+      <select id="segmentSelect" class="select"></select>
+
+      <div id="histError" class="error hidden"></div>
+      <div id="histogram" class="histogram"></div>
+      <p class="muted" id="histCaption"></p>
+    </div>
+  </div>
+
+  <script src="/static/data.js"></script>
+</body>
+</html>

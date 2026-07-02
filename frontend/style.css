@@ -164,6 +164,45 @@ h1 {
 .tab-panel { display: block; }
 .tab-panel.hidden { display: none; }
 
+/* --- Form fields (population stats page) --- */
+.field-label {
+  display: block;
+  color: var(--muted);
+  font-size: 0.8rem;
+  margin-bottom: 6px;
+}
+
+.select {
+  width: 100%;
+  background: var(--bg);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 8px 12px;
+  font-size: 0.9rem;
+  margin-bottom: 24px;
+}
+
+/* --- Histogram (population count distribution) --- */
+.histogram {
+  display: flex;
+  align-items: flex-end;
+  gap: 3px;
+  height: 220px;
+  border-bottom: 1px solid var(--border);
+  border-left: 1px solid var(--border);
+  padding: 8px;
+}
+
+.hist-bar {
+  flex: 1;
+  background: var(--bar-mid);
+  border-radius: 2px 2px 0 0;
+  min-height: 2px;
+  transition: height 0.3s ease, background 0.15s;
+}
+.hist-bar:hover { background: var(--accent); }
+
 /* --- Bar chart --- */
 .chart { display: flex; flex-direction: column; gap: 8px; }
 
