@@ -212,7 +212,7 @@ def run_fastsurfer_docker(subjects: list,
                 check=True,
                 capture_output=True,
                 text=True,
-                timeout=3600  # 1 hour timeout
+                timeout=86400  # 24h ceiling — FastSurfer runs can take many hours per subject
             )
 
             print(f"  ✓ FastSurfer completed successfully!")
