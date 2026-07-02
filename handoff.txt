@@ -1,0 +1,561 @@
+HANDOFF DOCUMENT — Brain Benchmark MRI Project
+Generated: 2026-07-01 (revised same day — see REVISION NOTE, REVISION NOTE 2)
+=======================================================
+
+## REVISION NOTE 2
+
+Two more developments since REVISION NOTE below:
+
+1. BUG FIX: `./bin/run_app.sh` was throwing a 500 on every request to `/`
+   ("TypeError: unhashable type: 'dict'" inside Jinja2's template cache
+   lookup). Root cause: backend/app.py:38 called the OLD Starlette
+   Jinja2Templates signature — `TemplateResponse("home.html", {"request":
+   request})`. The installed Starlette build (1.3.1, pulled in
+   unpinned as a FastAPI transitive dep — see CAUTION below) changed the
+   signature to `TemplateResponse(request, name, context=None)`. Called
+   the old way, "home.html" was bound to the new `request` parameter and
+   the context dict was bound to `name` — Jinja2 then tried to use that
+   dict as part of a cache key and blew up on hashing it. Fixed to
+   `templates.TemplateResponse(request, "home.html")`. This was a latent
+   bug (not a regression from this session's other edits).
+
+   CAUTION for next session: requirements.txt pins `fastapi>=0.110.0`
+   with no starlette pin. That is how a breaking Starlette API change
+   reached this repo silently. Worth pinning starlette explicitly (or at
+   least pinning fastapi to a tighter range) so a future transitive bump
+   doesn't reintroduce this class of bug undetected — there is currently
+   no test that exercises `GET /` and would have caught this before it
+   hit the user as a live 500.
+
+2. NEW UI/PRODUCT REQUIREMENT, stated directly by the user: the frontend
+   is not actually a single page. It's three routes sharing the FastAPI
+   backend:
+
+   - `/self` — account creation and management. Redirects to `/login` if
+     the visitor isn't signed in. Per-user stored data:
+       - auth basics (whatever the chosen auth scheme needs)
+       - email
+       - brain-region statistics: "a one-layer JSON file" (i.e. a flat
+         map, no nesting) populated after a successful MRI upload
+       - benchmark results: map of {brain segment: percentile}
+   - `/home` — file upload (this is the existing frontend/home.html
+     upload flow; it just needs to move off `/` and onto `/home`, with
+     `/` presumably becoming a landing page or a redirect).
+   - `/data` — population statistics: a short blurb, then an interactive
+     graph with a dropdown to pick a brain segment, plotting the COUNT
+     DISTRIBUTION (a histogram, not a single percentile line) of values
+     for that segment across the reference population.
+
+   None of this exists yet. Concretely, today:
+     - app.py only serves one route (`/`) rendering home.html — no
+       `/self`, `/login`, `/home`, or `/data` routes.
+     - There is no user/account model anywhere (storage.py's "jobs" are
+       anonymous, keyed by job_id, not by user) and no session/auth
+       middleware at all — zero auth infrastructure exists in the repo
+       today, not even a stub.
+     - There is no endpoint that returns a histogram/distribution over
+       backend/benchmark/HCP_YA_ALL.csv for a given segment — analysis.py
+       currently only computes a single subject's percentile against that
+       CSV, not the population's binned distribution.
+
+   OPEN QUESTION — flagging before anyone builds this, not deciding it
+   here: this repo is already a registered Firebase project (Firestore +
+   Storage are wired up per CLAUDE.md's GCP Infrastructure section).
+   Rolling a custom password/session auth system from scratch for `/self`
+   would mean owning password hashing, session/cookie security, and
+   token refresh — real attack surface — when Firebase Authentication
+   (email/password or OAuth) is a few lines of client SDK plus verifying
+   the ID token server-side, and reuses infra that's already provisioned
+   and billed for. Recommend Firebase Auth over a hand-rolled scheme
+   unless there's a concrete reason it doesn't fit (e.g. needing to run
+   fully offline/local-only with no Firebase project at all) — the user
+   should confirm before Phase work starts on `/self`.
+
+## REVISION NOTE
+
+This document was regenerated after two developments not reflected in the
+original version:
+
+1. Phase 1 code fixes (1a-1g below) were already committed since the
+   original handoff was written. They are kept here for the record,
+   marked DONE, with commit hashes.
+
+2. New product requirement, stated directly by the user (not previously
+   documented anywhere): uploads are held until one of TWO concurrent
+   FastSurfer processing slots is free; UP TO FIVE files may be stored
+   (queued + processing) at once; the 6th+ upload must be rejected with
+   a toast: "Please upload later due to reaching server capacity."
+   Nothing in the codebase or original plan implemented this.
+
+   Working through this requirement surfaced a deeper problem: the
+   original plan (Phase 1d, already committed as cd551d1) deploys the
+   worker as a Cloud Run SERVICE reached via Cloud Tasks HTTP dispatch.
+   Cloud Run Services have a hard, non-negotiable 60-minute request
+   timeout. The user has confirmed FastSurfer runs can take "many hours"
+   per subject — a Service can never complete that request; it will be
+   killed mid-run every time. This is not a config/timeout-value problem,
+   it's a wrong-primitive problem.
+
+   Decision (confirmed with user): move the worker to a CLOUD RUN JOB
+   (supports up to 24h per task execution, no HTTP request involved) and
+   drop Cloud Tasks entirely. Cloud Tasks' `max-concurrent-dispatches`
+   only gates *outstanding HTTP calls*; starting a Job execution returns
+   almost immediately, so once the worker stops being an HTTP endpoint,
+   Cloud Tasks can no longer enforce "2 concurrent" — a Cloud Tasks task
+   would look "done" the instant it kicks off a job that then runs for
+   hours. The 2-slot rule now needs to be enforced by a dispatcher that
+   watches actual job status in Firestore, not by counting in-flight
+   HTTP calls.
+
+   This affects Phase 1 (code), Phase 2 (GCP resources), Phase 3
+   (placeholders), and Phase 4 (deploy) below — all rewritten.
+
+
+## WHO YOU ARE TALKING TO
+
+The user's email is mashiur10.khan@vanderbilt.edu. They are building a
+web application that lets users upload a T1-weighted MRI scan, runs it
+through the FastSurfer brain segmentation pipeline (via Docker), and
+returns percentile comparisons against a population reference dataset.
+
+The GCP account actively being used is eluo.5230@gmail.com.
+
+
+## WHAT WAS DONE (across sessions, cumulative)
+
+1-8. (Unchanged from original handoff: Claude CLI install, MCP servers,
+GCP project creation, APIs enabled, service account creation, rate
+limiting, legal docs, CLAUDE.md updates — see git history for detail.)
+
+9. PHASE 1 CODE FIXES — ALL COMPLETED since original handoff:
+   1a. bin/run.sh path fix                    — DONE (7e9f6e6)
+   1b. /healthz endpoint                      — DONE (9dc62f2)
+   1c. OIDC auth on Cloud Tasks payload       — DONE (8f45c55) — NOTE:
+       this will be REMOVED again in the new plan below, since Cloud
+       Tasks is being dropped. Not wasted work — it was correct for the
+       architecture at the time it was written.
+   1d. cloudrun_worker.yaml Job→Service fix   — DONE (cd551d1) — NOTE:
+       this will be REVERSED in the new plan below — the worker needs
+       to go back to being a Job, but this time a *correct* Job manifest
+       (the original bug was a stale/incomplete Job spec, not that
+       "Job" was the wrong kind).
+   1e. .dockerignore                          — DONE (ba243a9)
+   1f. .env.example                           — DONE (e207b2f)
+   1g. GOOGLE_APPLICATION_CREDENTIALS in run_app.sh — DONE (0389b0b)
+
+
+## CURRENT CODEBASE STATE
+
+Repository: /home/hirae/mri-analysis  (branch: master)
+
+Key files (updated from original):
+  backend/app.py              FastAPI web app. Has /healthz. Still MISSING
+                                 the capacity check on /upload (Phase 1h).
+  backend/storage.py          Storage abstraction (local or firebase).
+                                 Still MISSING active-job counting (Phase 1h).
+  backend/queue_system.py     Queue abstraction. LocalQueue is unbounded
+                                 (no 2-slot limit). CloudTasksQueue has OIDC
+                                 auth wired (8f45c55) but is slated for
+                                 removal — see Phase 1k below.
+  backend/worker.py           Job processor (stages file, runs FastSurfer,
+                                 compares). Logic is reusable as-is; just
+                                 needs a non-HTTP entrypoint (Phase 1i).
+  backend/worker_entrypoint.py  Currently a FastAPI app receiving POST
+                                 /run from Cloud Tasks. Needs rewrite to a
+                                 plain script (no HTTP) — Phase 1i.
+  backend/analysis.py         Brain region extraction + benchmark comparison.
+  frontend/home.html          Upload/results UI — currently mounted at `/`.
+                                 Per REVISION NOTE 2, needs to move to `/home`
+                                 alongside new `/self`, `/login`, `/data`
+                                 routes/templates (none of which exist yet).
+  frontend/app.js             Upload/polling/chart rendering. Still MISSING
+                                 handling for the capacity-exceeded response
+                                 (Phase 1h).
+  frontend/style.css          Dark theme styling.
+  infra/Dockerfile.api        Cloud Run API image (python:3.11-slim).
+  infra/Dockerfile.worker     Worker image (deepmi/fastsurfer base). No
+                                 longer needs to EXPOSE a port (Phase 1i).
+  infra/cloudrun_service.yaml Cloud Run Service spec for the API. Unaffected.
+  infra/cloudrun_worker.yaml  Currently a Service manifest (cd551d1).
+                                 Needs to become a Job manifest — Phase 1i.
+  infra/firebase.json         Firebase Hosting config + Cloud Run rewrites.
+  infra/firestore.rules       Firestore security rules.
+  infra/storage.rules         GCS security rules.
+  bin/run_app.sh               Local dev launcher — fixed, no changes needed.
+  bin/run.sh                   Fixed, no changes needed.
+  gcp.bash                    *** STILL STALE: uses old project ID
+                                 "brain_project" — needs cleanup, low priority.
+
+NOT YET DONE — see Next Steps below.
+
+
+## NEXT STEPS (in order)
+
+---
+PHASE 0 - ENSURE TEST SUCCESS
+---
+(Unchanged from original — see prior revision if needed. Not affected by
+the worker-platform change; worker.py's core logic is untouched.)
+
+0a. TestDockerSmoke may fail on ARM64 hosts — register QEMU binfmt or skip.
+0b. Re-run TestDockerSmoke; 50s of clean FastSurfer execution = pass.
+0c. Check all other tests pass.
+
+---
+PHASE 1h — CAPACITY & CONCURRENCY CONTROL (NEW)
+---
+Applies regardless of worker platform — implement this first since both
+local dev and production need it.
+
+1h-i. backend/storage.py — add active-job counting to both backends:
+      - StorageBackend: add abstract `count_active_jobs() -> int`
+        (counts jobs whose status is in {"queued", "processing"}).
+      - LocalStorage: filter self._jobs.values() by status.
+      - FirebaseStorage: Firestore query on "jobs" collection,
+        `where("status", "in", ["queued", "processing"])`, count results.
+
+1h-ii. backend/app.py — in POST /upload, BEFORE storing the file, call
+       storage.count_active_jobs(). If >= 5, return
+       503 {"error": "capacity", "message":
+       "Please upload later due to reaching server capacity."}
+       without writing a file or job record.
+
+1h-iii. frontend/app.js — in the uploadBtn handler, special-case a 503
+        with error:"capacity" to show the toast text above (distinct
+        from the generic "Upload failed (status)" message currently
+        thrown for any non-OK response).
+
+1h-iv. backend/queue_system.py — LocalQueue: add a module-level
+       `asyncio.Semaphore(2)` acquired around the FastSurfer call in
+       `_run_local`, so local dev enforces the same 2-concurrent cap as
+       production instead of running every queued job immediately.
+
+---
+PHASE 1i — WORKER PLATFORM: CLOUD RUN JOB, NOT SERVICE (NEW/REVISED)
+---
+Reverses cd551d1, but correctly this time — the worker was never meant
+to serve HTTP; it needs the Job primitive.
+
+1i-i. backend/worker_entrypoint.py — rewrite as a plain script (drop
+      FastAPI/uvicorn entirely). Reads job_id and file_ref from
+      environment variables (Cloud Run Jobs passes per-execution
+      overrides as env vars), calls worker.process_job(job_id, file_ref)
+      directly, and lets worker.py's existing storage.set_job /
+      set_results calls report status — same as today, just no longer
+      triggered by an inbound HTTP request.
+
+1i-ii. infra/Dockerfile.worker — drop the EXPOSE/port config, set
+       ENTRYPOINT/CMD to run the new plain script.
+
+1i-iii. infra/cloudrun_worker.yaml — rewrite from a Service manifest to
+        a Job manifest:
+          apiVersion: run.googleapis.com/v1
+          kind: Job
+        with:
+          taskTimeoutSeconds: 86400   # 24h ceiling, well above "many hours"
+          parallelism: 1
+          taskCount: 1                # one task per execution == one subject
+          serviceAccountName: mri-worker-sa@PROJECT_ID.iam.gserviceaccount.com
+        Keep the freesurfer-license secret mount and resource limits
+        (8 vCPU / 16Gi) from the existing manifest.
+
+---
+PHASE 1j — DISPATCHER (NEW)
+---
+Replaces Cloud Tasks as the thing that decides "start the next job."
+Enforces the 2-slot rule for real, based on actual job status, not
+in-flight HTTP calls.
+
+1j-i. New Cloud Function (2nd gen), e.g. backend/dispatcher.py, triggered
+      on Firestore document writes to the "jobs" collection
+      (`google.cloud.firestore.document.v1.written` Eventarc trigger,
+      Firestore Native mode supports this natively).
+
+1j-ii. On every trigger firing, in a Firestore TRANSACTION (required —
+       two near-simultaneous writes must not both see "1 slot free" and
+       both dispatch):
+         a. Count docs with status == "processing".
+         b. If count < 2: query the oldest doc with status == "queued".
+            If one exists, set its status to "processing" INSIDE the
+            transaction (claims the slot atomically), then outside the
+            transaction call the Cloud Run Admin API
+            `projects.locations.jobs.run` for job `mri-worker`, passing
+            job_id/file_ref as container env overrides.
+         c. If no queued doc or no free slot, no-op.
+       This also self-drives: when a running job finishes and worker.py
+       flips its status to completed/failed, that write re-triggers the
+       dispatcher, which then picks up the next queued job. No polling
+       or Cloud Scheduler needed.
+
+1j-iii. New service account: mri-dispatcher-sa@PROJECT_ID.iam.gserviceaccount.com
+        Roles: roles/datastore.user (transactional read/write),
+               roles/run.developer (permission to call jobs.run).
+
+---
+PHASE 1k — REMOVE CLOUD TASKS (NEW)
+---
+1k-i. backend/queue_system.py — delete CloudTasksQueue (and its OIDC
+      logic from 8f45c55). For the firebase/production storage path,
+      `enqueue()` becomes a no-op: writing the job doc with
+      status="queued" via storage.set_job() IS the trigger now (Phase
+      1j-i listens to that write). LocalQueue stays as the only
+      meaningful implementation, now gated by Phase 1h-iv's semaphore.
+
+1k-ii. Drop GCP_QUEUE_LOCATION, GCP_QUEUE_NAME, GCP_WORKER_URL,
+       GCP_API_SA_EMAIL from env vars / .env.example (see updated table
+       below). mri-api-sa loses the roles/cloudtasks.enqueuer role.
+
+---
+PHASE 1L — MULTI-PAGE FRONTEND & ACCOUNTS (NEW — see REVISION NOTE 2)
+---
+BLOCKED on user confirming the auth approach (custom vs. Firebase Auth —
+see the OPEN QUESTION in REVISION NOTE 2) before any of this is built.
+Nothing below is started.
+
+1L-i. Auth: pick and wire an auth scheme. If Firebase Auth (recommended):
+      client SDK handles sign-up/sign-in, backend verifies the ID token
+      on protected routes (`/self`, and any endpoint that reads/writes
+      per-user data) via `firebase_admin.auth.verify_id_token()`.
+
+1L-ii. Routing split in app.py: move the existing upload/results flow off
+       `/` and onto `/home`; add `/login`, `/self`, `/data`. `/self`
+       redirects unauthenticated visitors to `/login`.
+
+1L-iii. User data model (new — today storage.py only has anonymous
+        job-keyed records, no user records at all):
+          - auth basics (per chosen scheme)
+          - email
+          - brain-region stats: flat {region: value} map, written after
+            a completed upload
+          - benchmark results: flat {segment: percentile} map
+        Needs a `users` collection/table in storage.py (new abstract
+        methods), separate from the existing `jobs` one. Decide how a
+        completed job's results attach to the uploading user's record —
+        today jobs aren't associated with any user at all.
+
+1L-iv. `/data` population-stats endpoint: analysis.py currently only
+       computes one subject's percentile against
+       backend/benchmark/HCP_YA_ALL.csv (N=889) — there is no code that
+       bins the population's own values for a segment into a histogram.
+       Needs a new function (e.g. `analysis.get_distribution(segment)`)
+       and endpoint returning bin edges/counts, plus a dropdown-driven
+       chart on the frontend (same charting approach as the existing
+       results chart in app.js, reused for a histogram instead of a
+       single-subject bar).
+
+---
+PHASE 2 — GCP INFRASTRUCTURE (REVISED — gcloud commands)
+---
+
+2a. Enable additional APIs (Cloud Tasks REMOVED, Eventarc/Functions ADDED
+    for the dispatcher — note pubsub.googleapis.com was already enabled
+    from the original plan and is now actually used, since Eventarc's
+    Firestore trigger runs over Pub/Sub under the hood):
+    gcloud services enable \
+      cloudbuild.googleapis.com \
+      artifactregistry.googleapis.com \
+      secretmanager.googleapis.com \
+      firebase.googleapis.com \
+      eventarc.googleapis.com \
+      cloudfunctions.googleapis.com \
+      run.googleapis.com \
+      --project=brainbenchmark-mri
+
+2b. Create Artifact Registry Docker repo (unchanged):
+    gcloud artifacts repositories create mri \
+      --repository-format=docker \
+      --location=us-central1 \
+      --project=brainbenchmark-mri
+
+2c. Create Firestore native database (unchanged):
+    gcloud firestore databases create \
+      --project=brainbenchmark-mri \
+      --location=us-central1
+
+2d. ~~Create Cloud Tasks queue~~ — REMOVED, no longer used.
+
+2e. Create service accounts:
+
+    mri-api-sa — roles trimmed (cloudtasks.enqueuer removed; storage
+    role ADDED since app.py writes the raw upload to GCS and this was
+    actually missing from the original plan too):
+    gcloud iam service-accounts create mri-api-sa \
+      --display-name="MRI API Service Account" \
+      --project=brainbenchmark-mri
+
+    for role in roles/datastore.user roles/storage.objectAdmin; do
+      gcloud projects add-iam-policy-binding brainbenchmark-mri \
+        --member="serviceAccount:mri-api-sa@brainbenchmark-mri.iam.gserviceaccount.com" \
+        --role="$role" --quiet
+    done
+
+    mri-worker-sa — unchanged from original plan:
+    gcloud iam service-accounts create mri-worker-sa \
+      --display-name="MRI Worker Service Account" \
+      --project=brainbenchmark-mri
+
+    for role in roles/storage.objectAdmin roles/datastore.user roles/secretmanager.secretAccessor; do
+      gcloud projects add-iam-policy-binding brainbenchmark-mri \
+        --member="serviceAccount:mri-worker-sa@brainbenchmark-mri.iam.gserviceaccount.com" \
+        --role="$role" --quiet
+    done
+
+    mri-dispatcher-sa — NEW (Phase 1j-iii):
+    gcloud iam service-accounts create mri-dispatcher-sa \
+      --display-name="MRI Dispatcher Service Account" \
+      --project=brainbenchmark-mri
+
+    for role in roles/datastore.user roles/run.developer; do
+      gcloud projects add-iam-policy-binding brainbenchmark-mri \
+        --member="serviceAccount:mri-dispatcher-sa@brainbenchmark-mri.iam.gserviceaccount.com" \
+        --role="$role" --quiet
+    done
+
+2f. Store FreeSurfer license in Secret Manager (unchanged):
+    *** BLOCKED: license.txt must exist at repo root first ***
+    Get it free at: https://surfer.nmr.mgh.harvard.edu/registration.html
+
+    gcloud secrets create freesurfer-license \
+      --data-file=./license.txt \
+      --project=brainbenchmark-mri
+
+    gcloud secrets add-iam-policy-binding freesurfer-license \
+      --member="serviceAccount:mri-worker-sa@brainbenchmark-mri.iam.gserviceaccount.com" \
+      --role="roles/secretmanager.secretAccessor" \
+      --project=brainbenchmark-mri
+
+2g. Install Firebase CLI and initialize (unchanged):
+    ~/node20/bin/npm install -g firebase-tools
+    firebase login --no-localhost
+    firebase use brainbenchmark-mri --add
+    cd infra && firebase deploy --only firestore:rules,storage
+
+---
+PHASE 3 — SUBSTITUTE PLACEHOLDERS IN YAML FILES
+---
+In infra/cloudrun_service.yaml and infra/cloudrun_worker.yaml, replace:
+  PROJECT_ID  →  brainbenchmark-mri
+  REGION      →  us-central1
+(cloudrun_worker.yaml is now a Job manifest per Phase 1i — same
+placeholder substitution applies.)
+
+---
+PHASE 4 — BUILD AND DEPLOY (REVISED)
+---
+Docker is NOT installed locally. Use Cloud Build for all image builds.
+
+4a. Build and push images (unchanged commands, worker image now has no
+    HTTP server inside it):
+    gcloud builds submit \
+      --tag=us-central1-docker.pkg.dev/brainbenchmark-mri/mri/api:latest \
+      --project=brainbenchmark-mri \
+      -f infra/Dockerfile.api .
+
+    gcloud builds submit \
+      --tag=us-central1-docker.pkg.dev/brainbenchmark-mri/mri/worker:latest \
+      --project=brainbenchmark-mri \
+      -f infra/Dockerfile.worker .
+
+4b. Deploy the worker as a Cloud Run JOB (not a Service — no URL to
+    capture, nothing calls it via HTTP anymore):
+    gcloud run jobs replace infra/cloudrun_worker.yaml \
+      --region=us-central1 --project=brainbenchmark-mri
+
+4c. Deploy the dispatcher Cloud Function, with the Firestore trigger on
+    the "jobs" collection:
+    gcloud functions deploy mri-dispatcher \
+      --gen2 \
+      --runtime=python311 \
+      --region=us-central1 \
+      --source=backend \
+      --entry-point=dispatch \
+      --trigger-event-filters="type=google.cloud.firestore.document.v1.written" \
+      --trigger-event-filters="database=(default)" \
+      --trigger-event-filters-path-pattern="document=jobs/{jobId}" \
+      --service-account=mri-dispatcher-sa@brainbenchmark-mri.iam.gserviceaccount.com \
+      --project=brainbenchmark-mri
+
+4d. Deploy API Cloud Run Service (unchanged):
+    gcloud run services replace infra/cloudrun_service.yaml \
+      --region=us-central1 --project=brainbenchmark-mri
+
+4e. Deploy Firebase Hosting (unchanged):
+    cd infra && firebase deploy --only hosting
+
+---
+PHASE 5 — BENCHMARK STATS (BLOCKED ON DATA)
+---
+(Unchanged from original.)
+backend/benchmark/adhd_stats.json is legacy/unused — compare_to_benchmark()
+already reads backend/benchmark/HCP_YA_ALL.csv directly. No action needed
+here beyond what CLAUDE.md already documents.
+
+---
+VERIFICATION STEPS (REVISED)
+---
+
+Local smoke test:
+  ./bin/run_app.sh
+  curl -F "file=@yourfile.nii.gz" http://localhost:8000/upload   # x5 → 6th should 503 "capacity"
+  curl http://localhost:8000/status/<job_id>
+  curl http://localhost:8000/healthz   → {"status": "ok"}
+  Confirm only 2 jobs show status "processing" at a time locally
+  (Phase 1h-iv semaphore), rest sit "queued".
+
+After Cloud Run deploy:
+  curl https://mri-api-<HASH>-uc.a.run.app/healthz
+  Upload 3 files back-to-back in production; confirm via Firestore
+  console that only 2 ever reach status "processing" simultaneously and
+  the 3rd stays "queued" until a slot frees (dispatcher behavior).
+  Upload a 6th file while 5 are outstanding; confirm 503/toast.
+
+End-to-end:
+  Open Firebase Hosting URL in browser.
+  Upload a .nii.gz T1w scan.
+  Watch status poll reach "completed" (now genuinely multi-hour —
+  don't assume ~20 min as the original handoff did).
+  Confirm bar chart results render.
+
+
+## UPDATED ENVIRONMENT VARIABLES
+
+| Variable | Required for | Notes |
+|---|---|---|
+| `STORAGE_BACKEND` | Production | `firebase` to enable GCS + Firestore |
+| `QUEUE_BACKEND` | Production | Retained for LocalQueue vs. no-op distinction; no `cloudtasks` value anymore |
+| `FIREBASE_STORAGE_BUCKET` | Firebase backend | e.g. `brainbenchmark-mri.appspot.com` |
+| `GOOGLE_APPLICATION_CREDENTIALS` | Firebase/GCP backends | Path to `backend/service-account-key.json` |
+| `GCP_PROJECT` | Dispatcher | `brainbenchmark-mri` |
+| `GCP_WORKER_JOB_LOCATION` | Dispatcher | e.g. `us-central1` (renamed from GCP_QUEUE_LOCATION) |
+| `GCP_WORKER_JOB_NAME` | Dispatcher | Cloud Run Job name, e.g. `mri-worker` (replaces GCP_WORKER_URL/GCP_QUEUE_NAME) |
+| `FREESURFER_LICENSE` | Worker | Default: `./license.txt` (gitignored) |
+| `FASTSURFER_OUTPUT_DIR` | Worker | Default: `./processed_data/web_jobs` |
+
+REMOVED: GCP_QUEUE_LOCATION, GCP_QUEUE_NAME, GCP_WORKER_URL, GCP_API_SA_EMAIL
+(all were Cloud-Tasks-specific).
+
+Remember to update .env.example and infra/cloudrun_service.yaml /
+infra/cloudrun_worker.yaml accordingly once Phase 1h-1k land.
+
+
+## IMPORTANT CONSTRAINTS
+
+- Never use clinical terms like "abnormal", "atrophy", "pathology",
+  "lesion", or "disorder" in any user-facing output. See:
+  legal/non-diagnostic-language-template.md
+
+- backend/service-account-key.json is gitignored and must NOT be committed.
+
+- The venv is at env/ (not venv/). Always activate with:
+    source env/bin/activate
+
+- Python version in use: 3.10.12
+
+- Node 20 is at ~/node20/bin/ (not in system PATH by default).
+  To use: export PATH="$HOME/node20/bin:$PATH"
+
+- Once Phase 1h-1k land, also update backend/queue_system.py's module
+  docstring and the "Queue abstraction" section of CLAUDE.md — both
+  still describe the old Cloud Tasks design and will mislead the next
+  session if left as-is. Not done in this revision since it's a docs
+  task tied to the code actually landing, not to planning.
