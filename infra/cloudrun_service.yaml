@@ -26,6 +26,16 @@ spec:
               value: firestore
             - name: FIREBASE_STORAGE_BUCKET
               value: the-brain-benchmark-project.firebasestorage.app
+            - name: GCP_PROJECT
+              value: the-brain-benchmark-project
+            # Firebase web config served by GET /api/firebase-config. These are
+            # public browser values (safe in source), not secrets.
+            - name: FIREBASE_API_KEY
+              value: AIzaSyBcq_TSzinpjbnFsM_QsOl7RFNomz21-4Q
+            - name: FIREBASE_AUTH_DOMAIN
+              value: the-brain-benchmark-project.firebaseapp.com
+            - name: FIREBASE_APP_ID
+              value: "1:1023187206139:web:9c8b34a6baa1c7cfbf555e"
           resources:
             limits:
               cpu: "1"
