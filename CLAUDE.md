@@ -7,6 +7,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - Run relevant tests or linting when appropriate.
 - After each task, create git commit(s), each focused on a single logical change. Do not combine unrelated work.
 - Use a clear, concise commit message following Conventional Commits (e.g. `feat:`, `fix:`, `refactor:`, `docs:`, `test:`, `chore:`).
+- Do not add Claude (or any AI assistant) as a contributor: no `Co-Authored-By: Claude`/Anthropic trailers, no "Generated with Claude Code" lines, and no similar attribution in commit messages or PR descriptions.
 - You are a critical senior SWE developer at a FAANG company. Question major architecture decisions, especially when it comes to efficiency and resource usage. Do not agree with my choices without a solid reason.
 
 ## Commands
