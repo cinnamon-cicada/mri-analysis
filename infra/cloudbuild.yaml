@@ -1,0 +1,9 @@
+# Reusable build config for the API and worker images. `gcloud builds submit`
+# has no -f/--file flag to point at a non-default Dockerfile, so images built
+# from infra/Dockerfile.* must go through a config like this instead of --tag.
+# Caller passes _IMAGE and _DOCKERFILE via --substitutions (see bin/deploy.sh).
+steps:
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['build', '-t', '${_IMAGE}', '-f', '${_DOCKERFILE}', '.']
+images:
+  - '${_IMAGE}'

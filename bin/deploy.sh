@@ -22,12 +22,12 @@ REPO="${REGION}-docker.pkg.dev/${PROJECT}/mri"
 
 echo "==> 4a. Build & push images via Cloud Build"
 gcloud builds submit --project="${PROJECT}" \
-  --tag="${REPO}/api:latest" \
-  -f infra/Dockerfile.api .
+  --config=infra/cloudbuild.yaml \
+  --substitutions=_IMAGE="${REPO}/api:latest",_DOCKERFILE=infra/Dockerfile.api .
 
 gcloud builds submit --project="${PROJECT}" \
-  --tag="${REPO}/worker:latest" \
-  -f infra/Dockerfile.worker .
+  --config=infra/cloudbuild.yaml \
+  --substitutions=_IMAGE="${REPO}/worker:latest",_DOCKERFILE=infra/Dockerfile.worker .
 
 echo "==> 4b. Deploy the worker as a Cloud Run Job"
 gcloud run jobs replace infra/cloudrun_worker.yaml \
