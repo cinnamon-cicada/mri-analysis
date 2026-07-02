@@ -55,3 +55,28 @@ def process_job(job_id: str, file_ref: str) -> dict:
 
         subject_output = output_dir / subject_id
         return compare_to_benchmark(str(subject_output))
+
+
+def attach_results_to_user(job_id: str, results: dict) -> None:
+    """Copy a completed job's percentiles onto the uploading user's record.
+
+    No-op for anonymous uploads (jobs without a `uid`). Called from both
+    completion paths (LocalQueue and the Cloud Run Job entrypoint) so /self can
+    show the signed-in user their latest results as a flat {segment: percentile}
+    map, per the user data model.
+    """
+    from storage import get_storage
+
+    storage = get_storage()
+    job = storage.get_job(job_id) or {}
+    uid = job.get("uid")
+    if not uid:
+        return
+
+    flat = {
+        label: pct
+        for label, pct in (
+            results.get("volume_percentiles", []) + results.get("thickness_percentiles", [])
+        )
+    }
+    storage.set_user(uid, {"benchmark_results": flat, "last_job_id": job_id})

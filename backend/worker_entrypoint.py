@@ -15,7 +15,7 @@ import os
 import sys
 
 from storage import get_storage
-from worker import process_job
+from worker import attach_results_to_user, process_job
 
 
 def main() -> int:
@@ -26,6 +26,7 @@ def main() -> int:
     try:
         result = process_job(job_id, file_ref)
         storage.set_results(job_id, result)
+        attach_results_to_user(job_id, result)
         storage.set_job(job_id, {"status": "completed"})
         return 0
     except Exception as e:

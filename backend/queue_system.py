@@ -49,7 +49,7 @@ def _get_local_semaphore() -> asyncio.Semaphore:
 
 async def _run_local(job_id: str, file_ref: str) -> None:
     from storage import get_storage
-    from worker import process_job
+    from worker import attach_results_to_user, process_job
 
     storage = get_storage()
     async with _get_local_semaphore():
@@ -57,6 +57,7 @@ async def _run_local(job_id: str, file_ref: str) -> None:
         try:
             result = await asyncio.to_thread(process_job, job_id, file_ref)
             storage.set_results(job_id, result)
+            attach_results_to_user(job_id, result)
             storage.set_job(job_id, {"status": "completed"})
         except Exception as e:
             storage.set_job(job_id, {"status": "failed", "error": str(e)})

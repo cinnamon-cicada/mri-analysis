@@ -42,6 +42,14 @@ class StorageBackend(ABC):
     def count_active_jobs(self) -> int:
         """Count jobs whose status is 'queued' or 'processing'."""
 
+    @abstractmethod
+    def get_user(self, uid: str) -> dict | None:
+        """Return the user record (keyed by Firebase uid), or None."""
+
+    @abstractmethod
+    def set_user(self, uid: str, data: dict) -> None:
+        """Merge fields into the user record (creates it if absent)."""
+
 
 _ACTIVE_STATUSES = ("queued", "processing")
 
@@ -59,6 +67,7 @@ class LocalStorage(StorageBackend):
         self._upload_dir.mkdir(parents=True, exist_ok=True)
         self._results_dir.mkdir(parents=True, exist_ok=True)
         self._jobs: dict = {}
+        self._users: dict = {}
 
     def store_file(self, job_id: str, data: bytes) -> str:
         path = self._upload_dir / f"{job_id}.nii.gz"
@@ -84,6 +93,12 @@ class LocalStorage(StorageBackend):
 
     def count_active_jobs(self) -> int:
         return sum(1 for job in self._jobs.values() if job.get("status") in _ACTIVE_STATUSES)
+
+    def get_user(self, uid: str) -> dict | None:
+        return self._users.get(uid)
+
+    def set_user(self, uid: str, data: dict) -> None:
+        self._users.setdefault(uid, {}).update(data)
 
 
 class FirebaseStorage(StorageBackend):
@@ -132,6 +147,13 @@ class FirebaseStorage(StorageBackend):
         query = self._db.collection("jobs").where("status", "in", list(_ACTIVE_STATUSES))
         result = query.count().get()
         return result[0][0].value
+
+    def get_user(self, uid: str) -> dict | None:
+        doc = self._db.collection("users").document(uid).get()
+        return doc.to_dict() if doc.exists else None
+
+    def set_user(self, uid: str, data: dict) -> None:
+        self._db.collection("users").document(uid).set(data, merge=True)
 
 
 _backend: StorageBackend | None = None

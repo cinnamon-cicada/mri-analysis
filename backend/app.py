@@ -2,7 +2,7 @@ import time
 import uuid
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, File, Request, UploadFile
+from fastapi import FastAPI, File, Header, Request, UploadFile
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -11,6 +11,7 @@ from slowapi.errors import RateLimitExceeded
 from slowapi.util import get_remote_address
 
 from analysis import get_population_distribution, list_population_segments
+from auth import verify_bearer_token
 from queue_system import get_queue
 from storage import get_storage
 
@@ -43,10 +44,57 @@ if os.path.isdir(FRONTEND_DIR):
     async def data_page(request: Request):
         return templates.TemplateResponse(request, "data.html")
 
+    @app.get("/login")
+    async def login_page(request: Request):
+        return templates.TemplateResponse(request, "login.html")
+
+    @app.get("/self")
+    async def self_page(request: Request):
+        return templates.TemplateResponse(request, "self.html")
+
 
 @app.get("/healthz")
 async def healthz():
     return {"status": "ok"}
+
+
+@app.get("/api/firebase-config")
+async def firebase_config():
+    """Public Firebase web config for the client SDK, sourced from env so no
+    keys are committed. Returns 501 when auth isn't configured (e.g. local dev
+    without Firebase), which the frontend treats as 'sign-in unavailable'."""
+    api_key = os.environ.get("FIREBASE_API_KEY")
+    if not api_key:
+        return JSONResponse({"error": "auth not configured"}, status_code=501)
+    project_id = os.environ.get("GCP_PROJECT", "the-brain-benchmark-project")
+    return {
+        "apiKey": api_key,
+        "authDomain": os.environ.get("FIREBASE_AUTH_DOMAIN", f"{project_id}.firebaseapp.com"),
+        "projectId": project_id,
+        "appId": os.environ.get("FIREBASE_APP_ID", ""),
+    }
+
+
+@app.get("/api/me")
+async def me(authorization: str | None = Header(default=None)):
+    """Return the signed-in user's record, creating it (with email) on first
+    access. Requires a valid Firebase ID token."""
+    claims = verify_bearer_token(authorization)
+    uid = claims["uid"]
+    email = claims.get("email")
+
+    storage = get_storage()
+    user = storage.get_user(uid) or {}
+    if email and user.get("email") != email:
+        storage.set_user(uid, {"email": email})
+        user["email"] = email
+
+    return {
+        "uid": uid,
+        "email": user.get("email", email),
+        "benchmark_results": user.get("benchmark_results", {}),
+        "last_job_id": user.get("last_job_id"),
+    }
 
 
 @app.get("/api/population/segments")
@@ -64,13 +112,23 @@ async def population_distribution(segment: str, bins: int = 20):
 
 @app.post("/upload")
 @limiter.limit("5/minute")
-async def upload(request: Request, file: UploadFile = File(...)):
+async def upload(
+    request: Request,
+    file: UploadFile = File(...),
+    authorization: str | None = Header(default=None),
+):
     storage = get_storage()
     if storage.count_active_jobs() >= 5:
         return JSONResponse(
             {"error": "capacity", "message": "Please upload later due to reaching server capacity."},
             status_code=503,
         )
+
+    # Anonymous uploads stay supported; a signed-in user's token associates the
+    # job with them so results land on their /self record when it completes.
+    job_doc = {"status": "queued"}
+    if authorization:
+        job_doc["uid"] = verify_bearer_token(authorization)["uid"]
 
     job_id = str(uuid.uuid4())
     data = await file.read()
@@ -79,7 +137,8 @@ async def upload(request: Request, file: UploadFile = File(...)):
     # file_ref/created_at are read back by the Firestore-triggered dispatcher
     # (dispatcher.py), which has no other way to learn which file a queued
     # job refers to or which queued job is oldest.
-    storage.set_job(job_id, {"status": "queued", "file_ref": file_ref, "created_at": time.time()})
+    job_doc.update({"file_ref": file_ref, "created_at": time.time()})
+    storage.set_job(job_id, job_doc)
 
     await get_queue().enqueue(job_id, file_ref)
 

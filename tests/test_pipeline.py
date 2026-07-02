@@ -662,3 +662,87 @@ class TestConcurrencyControl:
         assert r.json()["error"] == "capacity"
 
         concurrency_client.gate.set()
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Layer 5: Auth & user accounts (/login, /self, /api/me, job→user linkage)
+#
+# Firebase token verification is mocked (real verification needs a live Firebase
+# project + a browser to mint tokens); everything else — routing, the users
+# store, and results attachment — runs for real against LocalStorage.
+# ─────────────────────────────────────────────────────────────────────────────
+
+class TestAuthAndAccounts:
+    @pytest.fixture
+    def client(self, tmp_path, monkeypatch):
+        monkeypatch.chdir(tmp_path)
+        import storage, queue_system
+        storage._backend = None
+        queue_system._queue = None
+        from app import app
+        with TestClient(app, raise_server_exceptions=True) as c:
+            yield c
+        storage._backend = None
+        queue_system._queue = None
+
+    def test_login_page_served(self, client):
+        assert client.get("/login").status_code == 200
+
+    def test_self_page_served(self, client):
+        assert client.get("/self").status_code == 200
+
+    def test_firebase_config_501_when_unconfigured(self, client, monkeypatch):
+        monkeypatch.delenv("FIREBASE_API_KEY", raising=False)
+        assert client.get("/api/firebase-config").status_code == 501
+
+    def test_firebase_config_returns_values(self, client, monkeypatch):
+        monkeypatch.setenv("FIREBASE_API_KEY", "test-key")
+        monkeypatch.setenv("GCP_PROJECT", "proj")
+        monkeypatch.delenv("FIREBASE_AUTH_DOMAIN", raising=False)
+        body = client.get("/api/firebase-config").json()
+        assert body["apiKey"] == "test-key"
+        assert body["authDomain"] == "proj.firebaseapp.com"
+
+    def test_me_requires_token(self, client):
+        assert client.get("/api/me").status_code == 401
+
+    def test_me_returns_user_and_records_email(self, client, monkeypatch):
+        monkeypatch.setattr("app.verify_bearer_token",
+                            lambda auth: {"uid": "u1", "email": "a@b.com"})
+        body = client.get("/api/me", headers={"Authorization": "Bearer x"}).json()
+        assert body["uid"] == "u1"
+        assert body["email"] == "a@b.com"
+        assert body["benchmark_results"] == {}
+
+        import storage
+        assert storage.get_storage().get_user("u1")["email"] == "a@b.com"
+
+    def test_storage_user_set_is_a_merge(self, client):
+        import storage
+        s = storage.get_storage()
+        s.set_user("u1", {"email": "a@b.com"})
+        s.set_user("u1", {"benchmark_results": {"Left Caudate": 0.5}})
+        u = s.get_user("u1")
+        assert u["email"] == "a@b.com"
+        assert u["benchmark_results"] == {"Left Caudate": 0.5}
+
+    def test_attach_results_to_user_flattens_percentiles(self, client):
+        import storage, worker
+        s = storage.get_storage()
+        s.set_job("job1", {"uid": "u9"})
+        worker.attach_results_to_user("job1", {
+            "volume_percentiles": [["Left Caudate", 0.7]],
+            "thickness_percentiles": [["Left Insula", 0.3]],
+        })
+        u = s.get_user("u9")
+        assert u["benchmark_results"] == {"Left Caudate": 0.7, "Left Insula": 0.3}
+        assert u["last_job_id"] == "job1"
+
+    def test_attach_results_noop_for_anonymous_job(self, client):
+        import storage, worker
+        s = storage.get_storage()
+        s.set_job("job2", {})  # no uid
+        worker.attach_results_to_user("job2", {
+            "volume_percentiles": [["x", 0.5]], "thickness_percentiles": [],
+        })
+        assert s._users == {}
