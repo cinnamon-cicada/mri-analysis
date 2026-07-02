@@ -40,12 +40,18 @@ This project has two independent modes that share the `backend/` Python modules:
 - `firebase`: GCS for raw scan files, Firestore for job metadata. Requires `FIREBASE_STORAGE_BUCKET` and `GOOGLE_APPLICATION_CREDENTIALS`.
 
 **Queue abstraction** (`backend/queue_system.py`):
-- `local` (default): dispatches `worker.process_job()` as an asyncio background task in the same process.
-- `cloudtasks`: enqueues an HTTP task to GCP Cloud Tasks, which POSTs to `GCP_WORKER_URL/run` — a separately deployed Cloud Run Service running `worker_entrypoint.py`.
+- `local` (default, unset also falls back here): `LocalQueue` dispatches `worker.process_job()` as an asyncio background task in the same process, capped at 2 concurrent runs via a module-level semaphore.
+- `firestore`: `NoopQueue` — enqueue() does nothing. Writing the job doc via `storage.set_job(status="queued")` (which now also stores `file_ref`/`created_at`) IS the trigger; see Dispatcher below.
 
-**Worker** (`backend/worker.py`): stages the uploaded file into `{subject_id}/anat/{subject_id}_T1w.nii.gz`, invokes FastSurfer via Docker (`deepmi/fastsurfer:latest`), then calls `analysis.compare_to_benchmark()`.
+**Capacity limit**: `POST /upload` checks `storage.count_active_jobs()` (jobs with status `queued` or `processing`) before storing anything, and returns `503 {"error": "capacity", "message": "..."}` at 5 active jobs. Note this shares its threshold (5) with the per-IP rate limit below but is a completely different mechanism — one caps total server load across all clients, the other caps request rate from one IP.
 
-**Worker entrypoint** (`backend/worker_entrypoint.py`): thin FastAPI app that receives `POST /run` from Cloud Tasks and runs `process_job()`. This is what gets deployed as the Cloud Run Service (it serves HTTP, so it cannot be a Cloud Run Job).
+**Worker** (`backend/worker.py`): stages the uploaded file into `{subject_id}/anat/{subject_id}_T1w.nii.gz`, invokes FastSurfer via Docker (`deepmi/fastsurfer:latest`), then calls `analysis.compare_to_benchmark()`. Runs can take many hours per subject.
+
+**Worker entrypoint** (`backend/worker_entrypoint.py`): plain script (no HTTP) run as a Cloud Run Job execution. Reads `JOB_ID`/`FILE_REF` from env vars supplied per-execution by the dispatcher, calls `process_job()`, and writes only the terminal `completed`/`failed` status — `processing` is set earlier by the dispatcher's claim transaction, not here.
+
+**Dispatcher** (`backend/dispatcher.py`): a 2nd-gen Cloud Function triggered on writes to the `jobs` Firestore collection (deployed with its own minimal `backend/requirements.txt`, separate from the root one). On every firing it ignores the event payload and re-derives live state: in a Firestore transaction, count `processing` docs, and if under 2, atomically claim the oldest `queued` doc and start a `mri-worker` Cloud Run Job execution via the Admin API. Self-driving — the worker's own status writes re-trigger it, so no polling/scheduler is needed. Needs a composite index on `jobs(status ASC, created_at ASC)` (`infra/firestore.indexes.json`) since its query filters on `status` and orders by a different field.
+
+This replaced an earlier Cloud-Tasks-based design: the worker was briefly a Cloud Run Service invoked over HTTP, but Cloud Run Services have a hard 60-minute request timeout — incompatible with FastSurfer runs that take many hours. Cloud Tasks' concurrency dispatch limit also only gates outstanding HTTP calls, not actual job duration, so it couldn't enforce "2 concurrent" once the worker stopped being an HTTP endpoint.
 
 **Rate limiting**: `/upload` is limited to 5 requests/minute per IP via `slowapi`.
 
@@ -64,14 +70,12 @@ This project has two independent modes that share the `backend/` Python modules:
 | Variable | Required for | Notes |
 |---|---|---|
 | `STORAGE_BACKEND` | Production | `firebase` to enable GCS + Firestore |
-| `QUEUE_BACKEND` | Production | `cloudtasks` to enable GCP Cloud Tasks |
+| `QUEUE_BACKEND` | Production | `firestore` to select the no-op queue (dispatcher-driven); unset/anything else uses `LocalQueue` |
 | `FIREBASE_STORAGE_BUCKET` | Firebase backend | e.g. `the-brain-benchmark-project.appspot.com` |
 | `GOOGLE_APPLICATION_CREDENTIALS` | Firebase/GCP backends | Path to `backend/service-account-key.json` |
-| `GCP_PROJECT` | Cloud Tasks backend | `the-brain-benchmark-project` |
-| `GCP_QUEUE_LOCATION` | Cloud Tasks backend | e.g. `us-central1` |
-| `GCP_QUEUE_NAME` | Cloud Tasks backend | Queue name in Cloud Tasks |
-| `GCP_WORKER_URL` | Cloud Tasks backend | Cloud Run Service URL |
-| `GCP_API_SA_EMAIL` | Cloud Tasks backend | Service account email used for the OIDC token on enqueued tasks |
+| `GCP_PROJECT` | Dispatcher | `the-brain-benchmark-project` |
+| `GCP_WORKER_JOB_LOCATION` | Dispatcher | e.g. `us-central1`; defaults to `us-central1` if unset |
+| `GCP_WORKER_JOB_NAME` | Dispatcher | Cloud Run Job name; defaults to `mri-worker` if unset |
 | `FREESURFER_LICENSE` | Worker | Default: `./license.txt` (gitignored) |
 | `FASTSURFER_OUTPUT_DIR` | Worker | Default: `./processed_data/web_jobs` |
 
@@ -94,7 +98,7 @@ Provisioned resources:
 
 ## FastSurfer / Docker
 
-The Docker image `deepmi/fastsurfer:latest` is pulled at first run. GPU is disabled in `utils.run_fastsurfer_docker()` (flag commented out — re-enable with `--gpus all` if a GPU is available). Processing timeout is 1 hour per subject.
+The Docker image `deepmi/fastsurfer:latest` is pulled at first run. GPU is disabled in `utils.run_fastsurfer_docker()` (flag commented out — re-enable with `--gpus all` if a GPU is available). Processing timeout is 24 hours per subject (`subprocess.run(..., timeout=86400)`), matching the Cloud Run Job's `timeoutSeconds`. This was previously 1 hour — a leftover from before FastSurfer runs were confirmed to take many hours per subject, and one that would have silently killed every real production run regardless of the Job's own timeout.
 
 FreeSurfer license (`license.txt`) must be obtained free from https://surfer.nmr.mgh.harvard.edu/registration.html and placed at the repo root or pointed to via `FREESURFER_LICENSE`.
 
