@@ -18,6 +18,7 @@ import json
 import os
 import sys
 import tempfile
+import threading
 import time
 from pathlib import Path
 
@@ -207,10 +208,12 @@ def reset_singletons():
     from app import limiter
     storage._backend = None
     queue_system._queue = None
+    queue_system._local_semaphore = None
     limiter._storage.reset()
     yield
     storage._backend = None
     queue_system._queue = None
+    queue_system._local_semaphore = None
     limiter._storage.reset()
 
 
@@ -400,6 +403,41 @@ def pipeline_client(tmp_path, monkeypatch):
 
 
 @pytest.fixture
+def concurrency_client(tmp_path, monkeypatch):
+    """
+    Like pipeline_client, but FastSurfer is gated behind a threading.Event so
+    tests can hold jobs at "processing" deliberately — exercises the
+    2-concurrent semaphore and 5-active capacity limit without timing races.
+    The event is exposed as `client.gate`; call `.set()` to let jobs finish.
+    """
+    monkeypatch.chdir(tmp_path)
+
+    import storage, queue_system, utils
+    storage._backend = None
+    queue_system._queue = None
+
+    gate = threading.Event()
+
+    def _gated_fastsurfer(subjects, input_dir, output_dir, freesurfer_license, n_threads=4):
+        gate.wait(timeout=10)
+        for subject_id in subjects:
+            _populate_fastsurfer_output(Path(output_dir), subject_id)
+
+    PIPELINE_OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+    monkeypatch.setattr("worker.FASTSURFER_OUTPUT_DIR", str(PIPELINE_OUTPUT_DIR))
+    monkeypatch.setattr(utils, "run_fastsurfer_docker", _gated_fastsurfer)
+
+    from app import app
+    with TestClient(app, raise_server_exceptions=True) as client:
+        client.gate = gate
+        yield client
+
+    gate.set()
+    storage._backend = None
+    queue_system._queue = None
+
+
+@pytest.fixture
 def docker_pipeline_client(tmp_path, monkeypatch):
     """
     Full-pipeline TestClient — FastSurfer runs for real via Docker.
@@ -572,3 +610,55 @@ class TestFullPipeline:
             r = pipeline_client.get(f"/results/{job_id}")
             assert r.status_code == 200
             assert len(r.json()["volume_percentiles"]) > 0
+
+
+@requires_scan
+class TestConcurrencyControl:
+    """LocalQueue's 2-slot semaphore and /upload's 5-active capacity limit."""
+
+    def _upload(self, client):
+        r = client.post(
+            "/upload",
+            files={"file": ("scan.nii.gz", _real_brain_nii_gz(), "application/gzip")},
+        )
+        assert r.status_code == 200
+        return r.json()["job_id"]
+
+    def test_max_two_concurrent_processing(self, concurrency_client):
+        """4 jobs submitted while gated: exactly 2 reach 'processing', 2 stay 'queued'."""
+        ids = [self._upload(concurrency_client) for _ in range(4)]
+
+        statuses = []
+        deadline = time.time() + 5
+        while time.time() < deadline:
+            statuses = [concurrency_client.get(f"/status/{jid}").json()["status"] for jid in ids]
+            if statuses.count("processing") == 2:
+                break
+            time.sleep(0.05)
+
+        assert statuses.count("processing") == 2, f"Expected 2 processing, got: {statuses}"
+        assert statuses.count("queued") == 2, f"Expected 2 queued, got: {statuses}"
+
+        concurrency_client.gate.set()
+        for jid in ids:
+            assert _poll_until_done(concurrency_client, jid) == "completed"
+
+    def test_sixth_active_job_returns_503(self, concurrency_client):
+        """Once 5 jobs are queued/processing, the 6th upload is rejected with 503."""
+        for _ in range(5):
+            self._upload(concurrency_client)
+
+        # This test targets the global active-job capacity limit specifically,
+        # not the unrelated per-IP request rate limit (also 5, which every
+        # TestClient request would otherwise trip first since they share one IP).
+        from app import limiter
+        limiter._storage.reset()
+
+        r = concurrency_client.post(
+            "/upload",
+            files={"file": ("scan.nii.gz", _real_brain_nii_gz(), "application/gzip")},
+        )
+        assert r.status_code == 503
+        assert r.json()["error"] == "capacity"
+
+        concurrency_client.gate.set()

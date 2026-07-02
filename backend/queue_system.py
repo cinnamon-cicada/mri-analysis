@@ -34,7 +34,17 @@ class LocalQueue(QueueBackend):
         asyncio.create_task(_run_local(job_id, file_ref))
 
 
-_local_semaphore = asyncio.Semaphore(2)
+_local_semaphore: asyncio.Semaphore | None = None
+
+
+def _get_local_semaphore() -> asyncio.Semaphore:
+    # Lazily created (rather than at import time) so it binds to whichever
+    # event loop is actually running when first used, not whatever loop
+    # happened to exist at import time.
+    global _local_semaphore
+    if _local_semaphore is None:
+        _local_semaphore = asyncio.Semaphore(2)
+    return _local_semaphore
 
 
 async def _run_local(job_id: str, file_ref: str) -> None:
@@ -42,7 +52,7 @@ async def _run_local(job_id: str, file_ref: str) -> None:
     from worker import process_job
 
     storage = get_storage()
-    async with _local_semaphore:
+    async with _get_local_semaphore():
         storage.set_job(job_id, {"status": "processing"})
         try:
             result = await asyncio.to_thread(process_job, job_id, file_ref)
