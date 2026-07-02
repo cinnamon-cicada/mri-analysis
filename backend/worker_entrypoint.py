@@ -13,6 +13,7 @@ execution. This script only ever transitions a job to "completed" or
 """
 import os
 import sys
+import traceback
 
 from storage import get_storage
 from worker import attach_results_to_user, process_job
@@ -29,8 +30,11 @@ def main() -> int:
         attach_results_to_user(job_id, result)
         storage.set_job(job_id, {"status": "completed"})
         return 0
-    except Exception as e:
-        storage.set_job(job_id, {"status": "failed", "error": str(e)})
+    except Exception:
+        # Log the real cause to Cloud Run logs; store a generic message so
+        # internal details don't leak to clients via /status.
+        traceback.print_exc()
+        storage.set_job(job_id, {"status": "failed", "error": "Analysis failed."})
         return 1
 
 

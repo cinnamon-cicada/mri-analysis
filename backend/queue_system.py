@@ -14,6 +14,7 @@ should also be "firebase" in that case).
 """
 import asyncio
 import os
+import traceback
 from abc import ABC, abstractmethod
 
 
@@ -59,8 +60,11 @@ async def _run_local(job_id: str, file_ref: str) -> None:
             storage.set_results(job_id, result)
             attach_results_to_user(job_id, result)
             storage.set_job(job_id, {"status": "completed"})
-        except Exception as e:
-            storage.set_job(job_id, {"status": "failed", "error": str(e)})
+        except Exception:
+            # Log the real cause server-side; return a generic message so
+            # internal paths / command details don't leak to clients via /status.
+            traceback.print_exc()
+            storage.set_job(job_id, {"status": "failed", "error": "Analysis failed."})
 
 
 class NoopQueue(QueueBackend):
