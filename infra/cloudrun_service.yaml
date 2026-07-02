@@ -14,26 +14,18 @@ spec:
     spec:
       containerConcurrency: 80
       timeoutSeconds: 60
-      serviceAccountName: mri-api-sa@PROJECT_ID.iam.gserviceaccount.com
+      serviceAccountName: mri-api-sa@the-brain-benchmark-project.iam.gserviceaccount.com
       containers:
-        - image: REGION-docker.pkg.dev/PROJECT_ID/mri/api:latest
+        - image: us-central1-docker.pkg.dev/the-brain-benchmark-project/mri/api:latest
           ports:
             - containerPort: 8080
           env:
             - name: STORAGE_BACKEND
               value: firebase
             - name: QUEUE_BACKEND
-              value: cloudtasks
+              value: firestore
             - name: FIREBASE_STORAGE_BUCKET
-              value: PROJECT_ID.appspot.com
-            - name: GCP_PROJECT
-              value: PROJECT_ID
-            - name: GCP_QUEUE_LOCATION
-              value: us-central1
-            - name: GCP_QUEUE_NAME
-              value: mri-jobs
-            - name: GCP_WORKER_URL
-              value: https://mri-worker-HASH-uc.a.run.app
+              value: the-brain-benchmark-project.firebasestorage.app
           resources:
             limits:
               cpu: "1"

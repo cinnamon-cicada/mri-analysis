@@ -10,9 +10,9 @@ spec:
       template:
         spec:
           timeoutSeconds: 86400   # 24h ceiling — FastSurfer runs can take many hours
-          serviceAccountName: mri-worker-sa@PROJECT_ID.iam.gserviceaccount.com
+          serviceAccountName: mri-worker-sa@the-brain-benchmark-project.iam.gserviceaccount.com
           containers:
-            - image: REGION-docker.pkg.dev/PROJECT_ID/mri/worker:latest
+            - image: us-central1-docker.pkg.dev/the-brain-benchmark-project/mri/worker:latest
               # JOB_ID and FILE_REF are NOT set here — the dispatcher (see
               # backend/dispatcher.py) supplies them per execution as
               # container env var overrides via the Cloud Run Admin API's
@@ -21,7 +21,7 @@ spec:
                 - name: STORAGE_BACKEND
                   value: firebase
                 - name: FIREBASE_STORAGE_BUCKET
-                  value: PROJECT_ID.appspot.com
+                  value: the-brain-benchmark-project.firebasestorage.app
                 - name: FASTSURFER_OUTPUT_DIR
                   value: /tmp/fastsurfer_output
                 - name: FREESURFER_LICENSE
