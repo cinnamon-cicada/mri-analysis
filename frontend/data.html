@@ -28,7 +28,17 @@
       <select id="segmentSelect" class="select"></select>
 
       <div id="histError" class="error hidden"></div>
-      <div id="histogram" class="histogram"></div>
+      <div class="hist-plot">
+        <div class="hist-y-axis">
+          <span id="histYMax">0</span>
+          <span id="histYMin">0</span>
+        </div>
+        <div id="histogram" class="histogram"></div>
+      </div>
+      <div class="hist-x-axis">
+        <span id="histXMin"></span>
+        <span id="histXMax"></span>
+      </div>
       <p class="muted" id="histCaption"></p>
     </div>
   </div>

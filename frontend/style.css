@@ -184,10 +184,27 @@ h1 {
 }
 
 /* --- Histogram (population count distribution) --- */
+.hist-plot {
+  display: flex;
+  align-items: stretch;
+}
+
+.hist-y-axis {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  min-width: 32px;
+  padding: 8px 6px 8px 0;
+  font-size: 0.75rem;
+  color: var(--muted);
+  text-align: right;
+}
+
 .histogram {
   display: flex;
   align-items: flex-end;
   gap: 3px;
+  flex: 1;
   height: 220px;
   border-bottom: 1px solid var(--border);
   border-left: 1px solid var(--border);
@@ -202,6 +219,15 @@ h1 {
   transition: height 0.3s ease, background 0.15s;
 }
 .hist-bar:hover { background: var(--accent); }
+
+.hist-x-axis {
+  display: flex;
+  justify-content: space-between;
+  margin-left: 38px;
+  padding: 4px 8px 0;
+  font-size: 0.75rem;
+  color: var(--muted);
+}
 
 /* --- Bar chart --- */
 .chart { display: flex; flex-direction: column; gap: 8px; }

@@ -4,6 +4,10 @@ const segmentSelect = document.getElementById('segmentSelect');
 const histogramEl = document.getElementById('histogram');
 const histError = document.getElementById('histError');
 const histCaption = document.getElementById('histCaption');
+const histYMax = document.getElementById('histYMax');
+const histYMin = document.getElementById('histYMin');
+const histXMin = document.getElementById('histXMin');
+const histXMax = document.getElementById('histXMax');
 
 async function loadSegments() {
   try {
@@ -47,11 +51,20 @@ function renderHistogram(data) {
     histogramEl.appendChild(bar);
   });
 
+  histYMax.textContent = max;
+  histYMin.textContent = '0';
+  histXMin.textContent = data.edges[0].toFixed(1);
+  histXMax.textContent = data.edges[data.edges.length - 1].toFixed(1);
+
   histCaption.textContent = `n = ${data.n} subjects`;
 }
 
 function showError(msg) {
   histogramEl.innerHTML = '';
+  histYMax.textContent = '';
+  histYMin.textContent = '';
+  histXMin.textContent = '';
+  histXMax.textContent = '';
   histError.textContent = msg;
   histError.classList.remove('hidden');
 }
