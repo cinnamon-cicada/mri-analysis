@@ -13,9 +13,8 @@ nibabel>=5.0.0
 # Rate limiting
 slowapi>=0.1.9
 
-# Firebase / GCP (only needed when STORAGE_BACKEND=firebase or QUEUE_BACKEND=cloudtasks)
+# Firebase / GCP (only needed when STORAGE_BACKEND=firebase)
 firebase-admin>=6.0.0
-google-cloud-tasks>=2.13.0
 
 # Testing
 pytest>=7.4.0

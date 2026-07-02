@@ -83,18 +83,20 @@ This replaced an earlier Cloud-Tasks-based design: the worker was briefly a Clou
 
 Project: `the-brain-benchmark-project` (account: `eluo.5230@gmail.com`), billing linked to `010AA9-FCFD52-661122` (My Maps Billing Account). Also registered as a Firebase project.
 
-APIs enabled: Cloud Run, Cloud Tasks, Pub/Sub, Firestore, Cloud Storage, Cloud Build, Artifact Registry, Secret Manager, Firebase.
+APIs enabled: Cloud Run, Pub/Sub, Firestore, Cloud Storage, Cloud Build, Artifact Registry, Secret Manager, Firebase, Eventarc, Cloud Functions.
 
 Provisioned resources:
 - Artifact Registry Docker repo `mri` (us-central1)
-- Firestore native database (us-central1)
-- Cloud Tasks queue `mri-jobs` (us-central1)
+- Firestore native database (us-central1), with a composite index on `jobs(status ASC, created_at ASC)` (`infra/firestore.indexes.json`) for the dispatcher's queued-job query
 - Secret `freesurfer-license` (contents of repo-root `license.txt`)
 - Service accounts:
-  - `mri-api-sa@the-brain-benchmark-project.iam.gserviceaccount.com` — roles: Run Invoker, Cloud Tasks Enqueuer, Datastore User, Storage Object Creator (needed because `POST /upload` calls `FirebaseStorage.store_file()` directly from the API process — the original plan omitted this and uploads would 403)
+  - `mri-api-sa@the-brain-benchmark-project.iam.gserviceaccount.com` — roles: Datastore User, Storage Object Creator (the latter needed because `POST /upload` calls `FirebaseStorage.store_file()` directly from the API process — the original plan omitted this and uploads would 403). No longer has Cloud Tasks Enqueuer or Run Invoker — the API doesn't call the worker over HTTP anymore.
   - `mri-worker-sa@the-brain-benchmark-project.iam.gserviceaccount.com` — roles: Storage Object Admin, Datastore User, Secret Manager Secret Accessor (incl. on `freesurfer-license`)
-- Firestore rules and Storage rules (`infra/firestore.rules`, `infra/storage.rules`) deployed via `firebase deploy --only firestore:rules,storage`
+  - `mri-dispatcher-sa@the-brain-benchmark-project.iam.gserviceaccount.com` — roles: Datastore User (transactional claim), Run Developer (permission to call `jobs.run`)
+- Firestore rules/indexes and Storage rules (`infra/firestore.rules`, `infra/firestore.indexes.json`, `infra/storage.rules`) deployed via `firebase deploy --only firestore:rules,firestore:indexes,storage`
 - `backend/service-account-key.json` — a downloaded key for `mri-api-sa`, gitignored. Verified it authenticates and (post-fix) can write to the Storage bucket.
+
+REMOVED: the `mri-jobs` Cloud Tasks queue (deleted — no longer used, see Queue abstraction above).
 
 ## FastSurfer / Docker
 
