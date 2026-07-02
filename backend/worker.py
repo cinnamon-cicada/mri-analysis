@@ -33,7 +33,7 @@ def process_job(job_id: str, file_ref: str) -> dict:
     """
     from analysis import compare_to_benchmark
     from storage import get_storage
-    from utils import run_fastsurfer_docker
+    from utils import run_fastsurfer
 
     storage = get_storage()
 
@@ -46,7 +46,7 @@ def process_job(job_id: str, file_ref: str) -> dict:
         staged_file.write_bytes(storage.load_file(file_ref))
 
         output_dir = Path(FASTSURFER_OUTPUT_DIR) / job_id
-        run_fastsurfer_docker(
+        run_fastsurfer(
             subjects=[subject_id],
             input_dir=staging,
             output_dir=str(output_dir),

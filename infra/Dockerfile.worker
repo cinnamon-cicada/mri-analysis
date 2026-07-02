@@ -16,8 +16,16 @@ COPY backend/ ./backend/
 WORKDIR /app/backend
 
 ENV STORAGE_BACKEND=firebase
-# FREESURFER_LICENSE must be provided at runtime via env or Secret Manager
 ENV FASTSURFER_OUTPUT_DIR=/tmp/fastsurfer_output
+# Run FastSurfer in-process (run_fastsurfer.sh), not via nested `docker run` —
+# Cloud Run Jobs have no Docker daemon. See utils.run_fastsurfer().
+ENV FASTSURFER_MODE=native
+# FREESURFER_LICENSE is supplied at runtime as a mounted secret file path
+# (see infra/cloudrun_worker.yaml); FS_LICENSE is derived from it in utils.py.
+
+# The deepmi/fastsurfer base image sets ENTRYPOINT to run_fastsurfer.sh; reset
+# it so CMD runs our worker script rather than being passed as FastSurfer args.
+ENTRYPOINT []
 
 # Entrypoint: plain script, no HTTP server. JOB_ID/FILE_REF are supplied as
 # per-execution container env var overrides by the dispatcher (see

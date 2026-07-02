@@ -129,9 +129,113 @@ aseg_mapping = {
 }
 
 
-def run_fastsurfer_docker(subjects: list, 
-                          input_dir: str, output_dir: str, 
-                          freesurfer_license: str, 
+def run_fastsurfer(subjects: list,
+                   input_dir: str, output_dir: str,
+                   freesurfer_license: str,
+                   n_threads=4
+                   ) -> Dict:
+    """
+    Run FastSurfer, picking the invocation mode from FASTSURFER_MODE.
+
+    - ``native`` (production Cloud Run Job worker): invoke FastSurfer's
+      run_fastsurfer.sh directly, in-process. The worker image is built
+      FROM deepmi/fastsurfer, so FastSurfer and its deps are already present.
+      Cloud Run Jobs cannot run `docker run` (no daemon, no privileged mode),
+      so nesting Docker is not an option there.
+    - ``docker`` (default; local dev + batch pipeline on a real host): shell
+      out to `docker run deepmi/fastsurfer:latest` as before.
+    """
+    mode = os.environ.get("FASTSURFER_MODE", "docker").lower()
+    runner = run_fastsurfer_native if mode == "native" else run_fastsurfer_docker
+    return runner(
+        subjects=subjects,
+        input_dir=input_dir,
+        output_dir=output_dir,
+        freesurfer_license=freesurfer_license,
+        n_threads=n_threads,
+    )
+
+
+def run_fastsurfer_native(subjects: list,
+                          input_dir: str, output_dir: str,
+                          freesurfer_license: str,
+                          n_threads=4
+                          ) -> Dict:
+    """
+    Run FastSurfer directly (no Docker), for use INSIDE the FastSurfer
+    container image (the Cloud Run Job worker). Invokes run_fastsurfer.sh
+    from FASTSURFER_HOME and passes the license path via FS_LICENSE, mirroring
+    the flags used by run_fastsurfer_docker().
+    """
+    input_dir = Path(input_dir).resolve()
+    output_dir = Path(output_dir).resolve()
+    license_path = Path(freesurfer_license).resolve()
+
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    fastsurfer_home = os.environ.get("FASTSURFER_HOME", "/fastsurfer")
+    run_script = os.environ.get(
+        "FASTSURFER_RUN_SCRIPT", f"{fastsurfer_home}/run_fastsurfer.sh"
+    )
+    env = {**os.environ, "FS_LICENSE": str(license_path)}
+
+    print("=" * 60)
+    print("Running FastSurfer natively (in-container, no Docker)")
+    print("=" * 60)
+    print("")
+
+    for subject_id in subjects:
+        anat_dir = input_dir / subject_id / "anat"
+        t1_files = list(anat_dir.glob(f"{subject_id}_T1w.nii.gz"))
+
+        if not t1_files:
+            print(f"  ✗ T1w file not found in {anat_dir}")
+            continue
+
+        cmd = [
+            run_script,
+            "--t1", str(t1_files[0]),
+            "--sid", subject_id,
+            "--sd", str(output_dir),
+            "--threads", str(n_threads),
+            "--viewagg_device", "cpu",
+            "--vox_size", "1.0",
+        ]
+
+        print(f"  Running FastSurfer...")
+        print(f"  Command:\n    " + " \\\n    ".join(cmd))
+
+        try:
+            subprocess.run(
+                cmd,
+                check=True,
+                capture_output=True,
+                text=True,
+                timeout=86400,  # 24h ceiling — matches the Cloud Run Job timeout
+                env=env,
+            )
+            print(f"  ✓ FastSurfer completed successfully!")
+            print(f"  Output: {output_dir / subject_id}")
+        except subprocess.CalledProcessError as e:
+            print(f"  ✗ FastSurfer failed (exit {e.returncode})")
+            if e.stdout:
+                print("  STDOUT:\n", e.stdout[-3000:])
+            if e.stderr:
+                print("  STDERR:\n", e.stderr[-3000:])
+            raise
+        except Exception as e:
+            print(f"  ✗ FastSurfer failed: {str(e)}")
+            raise
+
+        print("")
+
+    print(f"FastSurfer processing complete")
+    print("=" * 60)
+
+
+def run_fastsurfer_docker(subjects: list,
+                          input_dir: str, output_dir: str,
+                          freesurfer_license: str,
                           n_threads=4
                           ) -> Dict:
     """
