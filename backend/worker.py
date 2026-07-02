@@ -1,8 +1,9 @@
 """
 Job worker — runs the full MRI pipeline for one uploaded scan.
 
-In production this runs as a Cloud Run Job, invoked by Cloud Tasks.
-In local dev it runs in a background thread via LocalQueue.
+In production this runs as a Cloud Run Job execution, started by the
+Firestore-triggered dispatcher (see dispatcher.py) via the Cloud Run
+Admin API. In local dev it runs in a background thread via LocalQueue.
 """
 import os
 import tempfile

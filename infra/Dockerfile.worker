@@ -1,4 +1,4 @@
-# FastSurfer worker image — runs on GPU-enabled Cloud Run Service (T4/L4).
+# FastSurfer worker image — runs on GPU-enabled Cloud Run Job (T4/L4).
 # Base: FastSurfer with GPU support + our pipeline code on top.
 FROM deepmi/fastsurfer:latest
 
@@ -19,5 +19,7 @@ ENV STORAGE_BACKEND=firebase
 # FREESURFER_LICENSE must be provided at runtime via env or Secret Manager
 ENV FASTSURFER_OUTPUT_DIR=/tmp/fastsurfer_output
 
-# Entrypoint: receive job payload via HTTP POST /run (triggered by Cloud Tasks)
-CMD ["uvicorn", "worker_entrypoint:app", "--host", "0.0.0.0", "--port", "8080", "--workers", "1"]
+# Entrypoint: plain script, no HTTP server. JOB_ID/FILE_REF are supplied as
+# per-execution container env var overrides by the dispatcher (see
+# dispatcher.py), which starts this via the Cloud Run Admin API.
+CMD ["python3", "worker_entrypoint.py"]

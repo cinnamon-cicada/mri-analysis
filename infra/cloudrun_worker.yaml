@@ -1,37 +1,37 @@
-apiVersion: serving.knative.dev/v1
-kind: Service
+apiVersion: run.googleapis.com/v1
+kind: Job
 metadata:
   name: mri-worker
 spec:
   template:
-    metadata:
-      annotations:
-        autoscaling.knative.dev/minScale: "0"
-        autoscaling.knative.dev/maxScale: "5"
-        run.googleapis.com/execution-environment: gen2
     spec:
-      containerConcurrency: 1   # one FastSurfer job per instance
-      timeoutSeconds: 3600      # 1-hour processing window
-      serviceAccountName: mri-worker-sa@PROJECT_ID.iam.gserviceaccount.com
-      containers:
-        - image: REGION-docker.pkg.dev/PROJECT_ID/mri/worker:latest
-          ports:
-            - containerPort: 8080
-          env:
-            - name: STORAGE_BACKEND
-              value: firebase
-            - name: FIREBASE_STORAGE_BUCKET
-              value: PROJECT_ID.appspot.com
-            - name: FASTSURFER_OUTPUT_DIR
-              value: /tmp/fastsurfer_output
-            - name: FREESURFER_LICENSE
-              valueFrom:
-                secretKeyRef:
-                  name: freesurfer-license
-                  key: license
-          resources:
-            limits:
-              cpu: "8"
-              memory: 16Gi
-              # Uncomment for GPU:
-              # nvidia.com/gpu: "1"
+      taskCount: 1        # one task per execution == one subject
+      parallelism: 1
+      template:
+        spec:
+          timeoutSeconds: 86400   # 24h ceiling — FastSurfer runs can take many hours
+          serviceAccountName: mri-worker-sa@PROJECT_ID.iam.gserviceaccount.com
+          containers:
+            - image: REGION-docker.pkg.dev/PROJECT_ID/mri/worker:latest
+              # JOB_ID and FILE_REF are NOT set here — the dispatcher (see
+              # backend/dispatcher.py) supplies them per execution as
+              # container env var overrides via the Cloud Run Admin API's
+              # projects.locations.jobs.run.
+              env:
+                - name: STORAGE_BACKEND
+                  value: firebase
+                - name: FIREBASE_STORAGE_BUCKET
+                  value: PROJECT_ID.appspot.com
+                - name: FASTSURFER_OUTPUT_DIR
+                  value: /tmp/fastsurfer_output
+                - name: FREESURFER_LICENSE
+                  valueFrom:
+                    secretKeyRef:
+                      name: freesurfer-license
+                      key: license
+              resources:
+                limits:
+                  cpu: "8"
+                  memory: 16Gi
+                  # Uncomment for GPU:
+                  # nvidia.com/gpu: "1"
