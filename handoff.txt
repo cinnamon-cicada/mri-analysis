@@ -306,20 +306,23 @@ PHASE 1k — REMOVE CLOUD TASKS (NEW)
        below). mri-api-sa loses the roles/cloudtasks.enqueuer role.
 
 ---
-PHASE 1L — MULTI-PAGE FRONTEND & ACCOUNTS (NEW — see REVISION NOTE 2)
+PHASE 1L — MULTI-PAGE FRONTEND & ACCOUNTS (see REVISION NOTE 2)
 ---
-BLOCKED on user confirming the auth approach (custom vs. Firebase Auth —
-see the OPEN QUESTION in REVISION NOTE 2) before any of this is built.
-Nothing below is started.
+1L-iv is DONE. 1L-i/ii(partial)/iii remain BLOCKED on user confirming
+the auth approach (custom vs. Firebase Auth — see the OPEN QUESTION in
+REVISION NOTE 2).
 
 1L-i. Auth: pick and wire an auth scheme. If Firebase Auth (recommended):
       client SDK handles sign-up/sign-in, backend verifies the ID token
       on protected routes (`/self`, and any endpoint that reads/writes
-      per-user data) via `firebase_admin.auth.verify_id_token()`.
+      per-user data) via `firebase_admin.auth.verify_id_token()`. NOT
+      STARTED — blocked.
 
 1L-ii. Routing split in app.py: move the existing upload/results flow off
-       `/` and onto `/home`; add `/login`, `/self`, `/data`. `/self`
-       redirects unauthenticated visitors to `/login`.
+       `/` and onto `/home`; add `/login`, `/self`. `/self` redirects
+       unauthenticated visitors to `/login`. NOT STARTED — blocked (the
+       `/data` half of this item is done, see 1L-iv; `/` still serves
+       the upload flow directly rather than `/home`).
 
 1L-iii. User data model (new — today storage.py only has anonymous
         job-keyed records, no user records at all):
@@ -331,17 +334,31 @@ Nothing below is started.
         Needs a `users` collection/table in storage.py (new abstract
         methods), separate from the existing `jobs` one. Decide how a
         completed job's results attach to the uploading user's record —
-        today jobs aren't associated with any user at all.
+        today jobs aren't associated with any user at all. NOT STARTED
+        — blocked.
 
-1L-iv. `/data` population-stats endpoint: analysis.py currently only
-       computes one subject's percentile against
-       backend/benchmark/HCP_YA_ALL.csv (N=889) — there is no code that
-       bins the population's own values for a segment into a histogram.
-       Needs a new function (e.g. `analysis.get_distribution(segment)`)
-       and endpoint returning bin edges/counts, plus a dropdown-driven
-       chart on the frontend (same charting approach as the existing
-       results chart in app.js, reused for a histogram instead of a
-       single-subject bar).
+1L-iv. `/data` population-stats endpoint — DONE (867bef4). Not blocked
+       by the auth decision since it reads population data, not
+       per-user data.
+         - analysis.py: `list_population_segments()` (dropdown options,
+           reusing utils.human_readable_cols) and
+           `get_population_distribution(segment, bins=20)` (np.histogram
+           over the chosen HCP_YA_ALL.csv `_Vol`/`_Thck` column).
+         - app.py: `GET /data` serves frontend/data.html;
+           `GET /api/population/segments` and
+           `GET /api/population/distribution/{segment}` back it.
+         - frontend/data.html + data.js: blurb, segment dropdown,
+           dropdown-driven histogram (new `.hist-bar`/`.histogram`/
+           `.select` CSS in style.css). Verified in a real headless
+           browser (not just curl): loads, lists all segments, redraws
+           on selection change, zero console errors.
+         - Profile icon (see below) added to home.html AND data.html
+           for nav consistency, even though only home.html was asked
+           for originally.
+
+Also DONE, smaller and unrelated to 1L's phase numbering: a fixed
+top-right profile icon linking to `/self` was added to home.html and
+data.html. It 404s on click until 1L-i/ii land — expected, not a bug.
 
 ---
 PHASE 2 — GCP INFRASTRUCTURE (REVISED — gcloud commands)
