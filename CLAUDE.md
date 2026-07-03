@@ -64,7 +64,7 @@ This replaced an earlier Cloud-Tasks-based design: the worker was briefly a Clou
 
 ### Benchmark stats
 
-`backend/benchmark/HCP_YA_ALL.csv` holds the HCP-YA general population reference data (N=889). `analysis.compare_to_benchmark()` and `preprocess.run_outlier_analysis()` load it directly (via a path relative to `backend/`) and compute percentiles from live population stats. `backend/benchmark/adhd_stats.json` is a legacy precomputed ADHD-200 mean/std file, no longer used by `compare_to_benchmark()`. The `analysis` parameter in `get_volume()` / `get_thickness()` selects which region set to extract — currently only `'adhd'` is implemented.
+`backend/benchmark/HCP_YA_ALL.csv` holds the HCP-YA general population reference data (N=889). `analysis.compare_to_benchmark()` and `preprocess.run_outlier_analysis()` load it directly (via a path relative to `backend/`) and compute percentiles from live population stats. The `analysis` parameter in `get_volume()` / `get_thickness()` selects which region set to extract — currently only `'adhd'` is implemented.
 
 ## Environment Variables
 
