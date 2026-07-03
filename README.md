@@ -150,14 +150,41 @@ chmod +x ./bin/run_app.sh
 ```
 
 ## Usage
-```bash
-# Run the batch analysis pipeline (venv active)
-cd backend && python main.py 1      # ADHD-200 comparison
-cd backend && python main.py 2      # Outlier/uniqueness vs HCP-YA
-cd backend && python main.py 1 2    # Both in sequence
 
-# Launch the web app locally
+All commands assume the venv is active (`source env/bin/activate`).
+
+### 1. Backend API only (just the logic)
+
+Serves the JSON endpoints (`POST /upload`, `GET /status/{id}`, `GET /results/{id}`) — no UI. Drive it with `curl` or your own client. This is what runs on Cloud Run in production.
+
+```bash
+cd backend
+uvicorn app:app --port 8000
+```
+
+> Note: locally the bundled frontend auto-mounts when `frontend/` is present, so `/` also serves the UI. The pure-API behavior applies in the deployed image, which ships without `frontend/`.
+
+### 2. Full app (local frontend + API)
+
+One command starts the API and serves the web UI at http://localhost:8000, wired to local filesystem storage and the in-process queue.
+
+```bash
 ./bin/run_app.sh
+```
+
+### 3. Online app (Firebase)
+
+Live at **https://the-brain-benchmark-project.web.app** — frontend on Firebase Hosting, `/api` calls routed to the Cloud Run API. Deploy with `./bin/deploy.sh`.
+
+### Batch analysis pipeline
+
+Research datasets, no web app:
+
+```bash
+cd backend
+python main.py 1      # ADHD-200 comparison
+python main.py 2      # Outlier/uniqueness vs HCP-YA
+python main.py 1 2    # Both in sequence
 ```
 
 ## Built With
