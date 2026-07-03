@@ -437,18 +437,3 @@ def preprocess_lab_data(input_dir: str = '/lab_data',
         freesurfer_license=freesurfer_license,
         n_threads=8
     )
-
-
-def process_upload_job(job: dict) -> dict:
-    job_id = job.get("job_id")
-    file_path = job.get("file_path")
-
-    if not os.path.exists(file_path):
-        raise FileNotFoundError(f"File not found: {file_path}")
-
-    img = nib.load(file_path)
-    # TODO: Run FastSurfer preprocessing and analysis on this file
-    return {
-        "shape": list(img.shape),
-        "dtype": str(img.get_data_dtype())
-    }
