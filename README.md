@@ -67,7 +67,7 @@ processed_data/outlier_lab/
 
 ### Pre-Processed Datasets
 - The ADHD200/WashU preprocessed dataset was downloaded at this link (9GB): https://www.nitrc.org/frs/downloadlink.php/3270
-- For a custom preprocessing pipeline, the run.sh script can be run.
+- For the batch preprocessing/analysis pipeline, run `cd backend && python main.py 1` (see CLAUDE.md).
 
 ## Pipeline
 
