@@ -1,0 +1,56 @@
+name: Cloud posture scan (Prowler)
+
+# Informational only — findings are uploaded as an artifact for manual review,
+# not used to gate merges. See security/risk-register.md (R10) and
+# security/incident-response-plan.md.
+#
+# SETUP REQUIRED before this workflow can run (live GCP + GitHub changes,
+# deliberately not done automatically — see plan sequencing note):
+#   1. Create a minimal VIEWER-ONLY service account in the-brain-benchmark-project
+#      (do not reuse mri-api-sa/mri-worker-sa/mri-dispatcher-sa — those hold write roles).
+#      Grant it roles/viewer (or narrower: roles/iam.securityReviewer + roles/browser).
+#   2. Set up Workload Identity Federation for this GitHub repo, bound to that SA,
+#      so no long-lived key is stored in GitHub Secrets:
+#      https://github.com/google-github-actions/auth#setting-up-workload-identity-federation
+#   3. Set repo variables: GCP_WORKLOAD_IDP (full provider resource name) and
+#      GCP_PROWLER_SA (the viewer SA's email).
+
+on:
+  workflow_dispatch: {}
+  schedule:
+    - cron: "0 6 1 * *"  # monthly, 1st of the month
+
+permissions:
+  contents: read
+  id-token: write  # required for Workload Identity Federation
+
+jobs:
+  prowler-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - id: auth
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDP }}
+          service_account: ${{ vars.GCP_PROWLER_SA }}
+
+      - name: Install Prowler
+        run: pip install prowler
+
+      - name: Run Prowler against the-brain-benchmark-project
+        run: |
+          mkdir -p prowler-output
+          # Run `prowler gcp --list-compliance` locally first to confirm current
+          # framework slugs (e.g. hipaa/cis) for this Prowler version before
+          # adding a --compliance flag here.
+          prowler gcp --project-id the-brain-benchmark-project \
+            -M csv json-ocsf \
+            -o prowler-output
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: prowler-findings-${{ github.run_id }}
+          path: prowler-output/
+          retention-days: 90
