@@ -25,8 +25,8 @@ def compare_to_benchmark(subject_dir: str) -> dict:
     -------
     dict
         {
-          "volume_percentiles": [[label, percentile], ...],
-          "thickness_percentiles": [[label, percentile], ...],
+          "volume_percentiles": [[label, percentile, measured_value], ...],
+          "thickness_percentiles": [[label, percentile, measured_value], ...],
         }
         Sorted descending by percentile within each category.
     """
@@ -55,12 +55,13 @@ def compare_to_benchmark(subject_dir: str) -> dict:
         col_data = ref_df[col].dropna()
         if len(col_data) == 0:
             continue
-        pct = _percentile(float(measurements[col]), col_data.mean(), col_data.std())
+        value = float(measurements[col])
+        pct = _percentile(value, col_data.mean(), col_data.std())
         label = human_readable_cols.get(col, col)
         if "_Vol" in col:
-            volume_percentiles.append([label, pct])
+            volume_percentiles.append([label, pct, value])
         else:
-            thickness_percentiles.append([label, pct])
+            thickness_percentiles.append([label, pct, value])
 
     volume_percentiles.sort(key=lambda x: (x[1] is not None, x[1] or 0), reverse=True)
     thickness_percentiles.sort(key=lambda x: (x[1] is not None, x[1] or 0), reverse=True)

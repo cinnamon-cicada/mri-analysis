@@ -12,7 +12,10 @@ const noResults = document.getElementById("noResults");
 const signOutBtn = document.getElementById("signOutBtn");
 
 function renderResults(benchmark) {
-  const entries = Object.entries(benchmark || {});
+  // benchmark_results is {label: {value, percentile}} — chart on percentile.
+  const entries = Object.entries(benchmark || {}).map(
+    ([label, r]) => [label, r.percentile]
+  );
   if (entries.length === 0) {
     noResults.classList.remove("hidden");
     return;

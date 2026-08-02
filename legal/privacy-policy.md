@@ -11,7 +11,7 @@ This Privacy Policy explains how The Brain Benchmark Project ("we", "us") collec
 
 | Data Type | Purpose | Retention |
 |-----------|---------|-----------|
-| Uploaded MRI/NIfTI files | Brain scan processing | Deleted within 30 days |
+| Uploaded MRI/NIfTI files | Brain scan processing | Deleted immediately once benchmark comparison completes. If processing fails, the file is kept temporarily for troubleshooting rather than deleted. |
 | Job metadata (job ID, status, timestamps) | Pipeline tracking | 90 days |
 | IP address | Rate limiting and abuse prevention | 24 hours in memory |
 | Derived volumetric statistics | Statistical comparison results | Up to 1 year (anonymized) |

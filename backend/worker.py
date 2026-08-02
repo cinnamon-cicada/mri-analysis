@@ -55,9 +55,11 @@ def process_job(job_id: str, file_ref: str) -> dict:
             # staged copy in place, then replaces the persisted raw upload
             # with the defaced bytes so the facially-intact original is at
             # rest for as short a window as possible (bounded by queue depth,
-            # not by the 30-day retention window in app.py/storage.py).
+            # not by how long the file is retained overall — see the
+            # storage.delete_file() call below, which removes it entirely
+            # once the comparison it exists for is done).
             deface_file(staged_file)
-            storage.store_file(job_id, staged_file.read_bytes())
+            file_ref = storage.store_file(job_id, staged_file.read_bytes())
 
             output_dir = Path(FASTSURFER_OUTPUT_DIR) / job_id
             run_fastsurfer(
@@ -69,6 +71,13 @@ def process_job(job_id: str, file_ref: str) -> dict:
 
             subject_output = output_dir / subject_id
             results = compare_to_benchmark(str(subject_output))
+
+            # The scan has served its purpose the moment the comparison is
+            # done — only the measured values/percentiles need to survive
+            # past this point, not the volume itself. Delete unconditionally
+            # here (not in a `finally`) so a failed comparison leaves the
+            # file in place for retry/debugging rather than deleting on error.
+            storage.delete_file(file_ref)
     except Exception:
         logger.exception("job_failed", extra={"event": "job_failed", "job_id": job_id})
         raise
@@ -78,12 +87,14 @@ def process_job(job_id: str, file_ref: str) -> dict:
 
 
 def attach_results_to_user(job_id: str, results: dict) -> None:
-    """Copy a completed job's percentiles onto the uploading user's record.
+    """Copy a completed job's measured values and percentiles onto the
+    uploading user's record. This is the only place those values persist
+    once the raw scan is deleted (see process_job), so it's a
+    {segment: {value, percentile}} map, not just percentiles.
 
     No-op for anonymous uploads (jobs without a `uid`). Called from both
-    completion paths (LocalQueue and the Cloud Run Job entrypoint) so /self can
-    show the signed-in user their latest results as a flat {segment: percentile}
-    map, per the user data model.
+    completion paths (LocalQueue and the Cloud Run Job entrypoint) so /self
+    can show the signed-in user their latest results.
     """
     from storage import get_storage
 
@@ -94,8 +105,8 @@ def attach_results_to_user(job_id: str, results: dict) -> None:
         return
 
     flat = {
-        label: pct
-        for label, pct in (
+        label: {"value": value, "percentile": pct}
+        for label, pct, value in (
             results.get("volume_percentiles", []) + results.get("thickness_percentiles", [])
         )
     }

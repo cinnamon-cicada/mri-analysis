@@ -327,14 +327,15 @@ class TestBenchmarkComparison:
     def test_all_percentiles_nonzero_and_in_range(self, fastsurfer_output_dir):
         from analysis import compare_to_benchmark
         r = compare_to_benchmark(str(fastsurfer_output_dir / "sub-001"))
-        for label, pct in r["volume_percentiles"] + r["thickness_percentiles"]:
+        for label, pct, value in r["volume_percentiles"] + r["thickness_percentiles"]:
             assert pct is not None, f"{label}: got None"
             assert 0.0 < pct < 1.0, f"{label}: percentile {pct} out of (0, 1)"
+            assert isinstance(value, float), f"{label}: measured value {value!r} is not a float"
 
     def test_labels_are_human_readable(self, fastsurfer_output_dir):
         from analysis import compare_to_benchmark
         r = compare_to_benchmark(str(fastsurfer_output_dir / "sub-001"))
-        for label, _ in r["volume_percentiles"]:
+        for label, _, _ in r["volume_percentiles"]:
             assert not label.startswith("FS_"), f"Raw CSV column leaked: {label}"
 
     def test_all_five_subjects_succeed(self, fastsurfer_output_dir):
@@ -349,8 +350,8 @@ class TestBenchmarkComparison:
         from analysis import compare_to_benchmark
         r1 = compare_to_benchmark(str(fastsurfer_output_dir / "sub-001"))
         r5 = compare_to_benchmark(str(fastsurfer_output_dir / "sub-005"))
-        pct1 = {l: p for l, p in r1["volume_percentiles"] if p is not None}
-        pct5 = {l: p for l, p in r5["volume_percentiles"] if p is not None}
+        pct1 = {l: p for l, p, _ in r1["volume_percentiles"] if p is not None}
+        pct5 = {l: p for l, p, _ in r5["volume_percentiles"] if p is not None}
         common = set(pct1) & set(pct5)
         assert common, "No overlapping volume labels"
         label = next(iter(common))
@@ -558,9 +559,10 @@ class TestFullPipeline:
 
         results = pipeline_client.get(f"/results/{job_id}").json()
         all_pcts = results["volume_percentiles"] + results["thickness_percentiles"]
-        for label, pct in all_pcts:
+        for label, pct, value in all_pcts:
             assert pct is not None, f"{label}: got None"
             assert 0.0 < pct < 1.0, f"{label}: percentile {pct} out of (0, 1)"
+            assert value is not None, f"{label}: measured value missing"
 
     def test_volume_labels_human_readable(self, pipeline_client):
         """Volume labels must come from human_readable_cols, not raw CSV column names."""
@@ -572,7 +574,7 @@ class TestFullPipeline:
         assert _poll_until_done(pipeline_client, job_id) == "completed"
 
         results = pipeline_client.get(f"/results/{job_id}").json()
-        for label, _ in results["volume_percentiles"]:
+        for label, _, _ in results["volume_percentiles"]:
             assert not label.startswith("FS_"), f"Raw CSV column in output: {label}"
 
     def test_status_lifecycle(self, pipeline_client):
@@ -733,16 +735,19 @@ class TestAuthAndAccounts:
         assert u["email"] == "a@b.com"
         assert u["benchmark_results"] == {"Left Caudate": 0.5}
 
-    def test_attach_results_to_user_flattens_percentiles(self, client):
+    def test_attach_results_to_user_stores_value_and_percentile(self, client):
         import storage, worker
         s = storage.get_storage()
         s.set_job("job1", {"uid": "u9"})
         worker.attach_results_to_user("job1", {
-            "volume_percentiles": [["Left Caudate", 0.7]],
-            "thickness_percentiles": [["Left Insula", 0.3]],
+            "volume_percentiles": [["Left Caudate", 0.7, 3800.0]],
+            "thickness_percentiles": [["Left Insula", 0.3, 2.5]],
         })
         u = s.get_user("u9")
-        assert u["benchmark_results"] == {"Left Caudate": 0.7, "Left Insula": 0.3}
+        assert u["benchmark_results"] == {
+            "Left Caudate": {"value": 3800.0, "percentile": 0.7},
+            "Left Insula": {"value": 2.5, "percentile": 0.3},
+        }
         assert u["last_job_id"] == "job1"
 
     def test_attach_results_noop_for_anonymous_job(self, client):
@@ -750,7 +755,7 @@ class TestAuthAndAccounts:
         s = storage.get_storage()
         s.set_job("job2", {})  # no uid
         worker.attach_results_to_user("job2", {
-            "volume_percentiles": [["x", 0.5]], "thickness_percentiles": [],
+            "volume_percentiles": [["x", 0.5, 100.0]], "thickness_percentiles": [],
         })
         assert s._users == {}
 
@@ -818,6 +823,10 @@ class TestDefacing:
 
         s = storage.get_storage()
         file_ref = s.store_file("job-deface-test", b"RAW_FACE_BYTES")
+        # Deletion-after-comparison is this file's own subject (see
+        # TestRetention.test_scan_deleted_after_comparison below) — disabled
+        # here so the persisted-overwrite step itself stays observable.
+        monkeypatch.setattr(s, "delete_file", lambda ref: None)
 
         worker.process_job("job-deface-test", file_ref)
 
@@ -829,6 +838,31 @@ class TestRetention:
     """expires_at fields that back the Firestore TTL policies documented in
     CLAUDE.md — arbitrary bytes are enough here; nothing reads the upload as
     a real scan on this path (FastSurfer/deface are both mocked)."""
+
+    def test_scan_deleted_after_comparison(self, tmp_path, monkeypatch):
+        """worker.process_job() must delete the persisted scan the moment
+        the benchmark comparison succeeds — only the measured values and
+        percentiles (see attach_results_to_user) should outlive the file."""
+        monkeypatch.chdir(tmp_path)
+        import storage, utils, deface, worker
+        storage._backend = None
+
+        monkeypatch.setattr(deface, "deface_file", lambda path: None)
+
+        def _fake_fastsurfer(subjects, input_dir, output_dir, freesurfer_license, n_threads=4):
+            for subject_id in subjects:
+                _populate_fastsurfer_output(Path(output_dir), subject_id)
+
+        monkeypatch.setattr(utils, "run_fastsurfer_docker", _fake_fastsurfer)
+        monkeypatch.setattr(worker, "FASTSURFER_OUTPUT_DIR", str(tmp_path / "fastsurfer_out"))
+
+        s = storage.get_storage()
+        file_ref = s.store_file("job-retention-test", b"RAW_SCAN_BYTES")
+
+        worker.process_job("job-retention-test", file_ref)
+
+        with pytest.raises(FileNotFoundError):
+            s.load_file(file_ref)
 
     def test_job_doc_expires_90_days_out(self, pipeline_client):
         import storage

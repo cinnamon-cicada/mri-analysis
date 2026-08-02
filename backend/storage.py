@@ -30,6 +30,10 @@ class StorageBackend(ABC):
         """Retrieve file by the reference returned from store_file."""
 
     @abstractmethod
+    def delete_file(self, file_ref: str) -> None:
+        """Delete the file at the given reference. No-op if already absent."""
+
+    @abstractmethod
     def get_job(self, job_id: str) -> dict | None:
         """Return job metadata, or None if not found."""
 
@@ -84,6 +88,9 @@ class LocalStorage(StorageBackend):
     def load_file(self, file_ref: str) -> bytes:
         return Path(file_ref).read_bytes()
 
+    def delete_file(self, file_ref: str) -> None:
+        Path(file_ref).unlink(missing_ok=True)
+
     def get_job(self, job_id: str) -> dict | None:
         return self._jobs.get(job_id)
 
@@ -135,6 +142,9 @@ class FirebaseStorage(StorageBackend):
 
     def load_file(self, file_ref: str) -> bytes:
         return self._bucket.blob(file_ref).download_as_bytes()
+
+    def delete_file(self, file_ref: str) -> None:
+        self._bucket.blob(file_ref).delete()
 
     def get_job(self, job_id: str) -> dict | None:
         doc = self._db.collection("jobs").document(job_id).get()

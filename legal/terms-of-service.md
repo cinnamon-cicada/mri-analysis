@@ -29,7 +29,7 @@ We do not knowingly accept identifiable patient data from third parties without 
 
 ## 5. Data Retention and Deletion
 
-Uploaded scan files are processed and stored temporarily for the purpose of generating your results. Files are automatically deleted from our servers within **30 days** of upload unless you request earlier deletion. Processed statistical outputs (not raw scans) may be retained in anonymized, aggregated form for research purposes.
+Uploaded scan files are processed and stored only for as long as it takes to generate your results: raw scan files are automatically deleted from our servers immediately after the benchmark comparison completes. If processing fails, the file is kept temporarily for troubleshooting rather than immediately deleted. Processed statistical outputs (not raw scans) may be retained in anonymized, aggregated form for research purposes.
 
 You may request deletion of your data at any time by contacting us.
 
