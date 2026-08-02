@@ -10,7 +10,14 @@ Switch by setting STORAGE_BACKEND=firebase and providing:
 import json
 import os
 from abc import ABC, abstractmethod
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
+
+# Matches the "Derived volumetric statistics... 1 year (anonymized)" row in
+# legal/privacy-policy.md. Results docs hold no uid/filename (see
+# analysis.compare_to_benchmark), so this TTL is independent of, and longer
+# than, the 90-day jobs-collection retention in app.py.
+RESULTS_RETENTION_DAYS = 365
 
 
 class StorageBackend(ABC):
@@ -141,7 +148,8 @@ class FirebaseStorage(StorageBackend):
         return doc.to_dict() if doc.exists else None
 
     def set_results(self, job_id: str, data: dict) -> None:
-        self._db.collection("results").document(job_id).set(data)
+        expires_at = datetime.now(timezone.utc) + timedelta(days=RESULTS_RETENTION_DAYS)
+        self._db.collection("results").document(job_id).set({**data, "expires_at": expires_at})
 
     def count_active_jobs(self) -> int:
         query = self._db.collection("jobs").where("status", "in", list(_ACTIVE_STATUSES))

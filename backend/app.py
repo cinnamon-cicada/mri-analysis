@@ -2,8 +2,10 @@ import logging
 import time
 import uuid
 from contextlib import asynccontextmanager
+from datetime import datetime, timedelta, timezone
 
 from fastapi import FastAPI, File, Header, HTTPException, Request, UploadFile
+from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -36,6 +38,12 @@ limiter = Limiter(key_func=get_remote_address)
 # reading the body in chunks so an oversized (or unbounded/chunked) upload is
 # rejected before it can exhaust the API process's memory.
 MAX_UPLOAD_BYTES = 200 * 1024 * 1024
+
+# Matches the "Job metadata... 90 days" row in legal/privacy-policy.md. Written
+# as a real Timestamp (not the `created_at` float epoch, which the dispatcher
+# already depends on for its queued-job ordering query) so a Firestore TTL
+# policy on `jobs.expires_at` can enforce it without touching that query.
+JOB_RETENTION_DAYS = 90
 
 FRONTEND_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "frontend")
 
@@ -212,7 +220,8 @@ async def upload(
     # file_ref/created_at are read back by the Firestore-triggered dispatcher
     # (dispatcher.py), which has no other way to learn which file a queued
     # job refers to or which queued job is oldest.
-    job_doc.update({"file_ref": file_ref, "created_at": time.time()})
+    expires_at = datetime.now(timezone.utc) + timedelta(days=JOB_RETENTION_DAYS)
+    job_doc.update({"file_ref": file_ref, "created_at": time.time(), "expires_at": expires_at})
     storage.set_job(job_id, job_doc)
 
     await get_queue().enqueue(job_id, file_ref)
@@ -226,7 +235,7 @@ async def get_status(job_id: str, authorization: str | None = Header(default=Non
     if job is None:
         return JSONResponse({"status": "not_found"}, status_code=404)
     _authorize_job_access(job, authorization)
-    return JSONResponse(job)
+    return JSONResponse(jsonable_encoder(job))
 
 
 @app.get("/results/{job_id}")
@@ -241,4 +250,4 @@ async def get_results(job_id: str, authorization: str | None = Header(default=No
     results = storage.get_results(job_id)
     if results is None:
         return JSONResponse({"error": "results missing"}, status_code=500)
-    return JSONResponse(results)
+    return JSONResponse(jsonable_encoder(results))

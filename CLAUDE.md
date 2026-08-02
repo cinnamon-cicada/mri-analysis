@@ -99,6 +99,18 @@ Provisioned resources:
 
 REMOVED: the `mri-jobs` Cloud Tasks queue (deleted — no longer used, see Queue abstraction above).
 
+**Retention (not yet applied — one-time commands, run manually against the live project)**:
+Matches the retention table in `legal/privacy-policy.md`. `app.py`/`storage.py` write the `expires_at` fields these depend on; the two commands below are what actually make deletion happen and haven't been run yet:
+```bash
+# Raw scans (uploads/*.nii.gz), 30 days — infra/storage-lifecycle.json
+gsutil lifecycle set infra/storage-lifecycle.json gs://the-brain-benchmark-project.firebasestorage.app
+
+# jobs/results docs — TTL policy on the expires_at field each doc now carries
+# (90 days for jobs, 365 for results, per app.py / storage.py)
+gcloud firestore fields ttls update expires_at --collection-group=jobs --database='(default)'
+gcloud firestore fields ttls update expires_at --collection-group=results --database='(default)'
+```
+
 ## FastSurfer / Docker
 
 The Docker image `deepmi/fastsurfer:latest` is pulled at first run. GPU is disabled in `utils.run_fastsurfer_docker()` (flag commented out — re-enable with `--gpus all` if a GPU is available). Processing timeout is 24 hours per subject (`subprocess.run(..., timeout=86400)`), matching the Cloud Run Job's `timeoutSeconds`. This was previously 1 hour — a leftover from before FastSurfer runs were confirmed to take many hours per subject, and one that would have silently killed every real production run regardless of the Job's own timeout.

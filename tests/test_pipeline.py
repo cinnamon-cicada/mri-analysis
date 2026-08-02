@@ -20,6 +20,7 @@ import sys
 import tempfile
 import threading
 import time
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import nibabel as nib
@@ -822,3 +823,40 @@ class TestDefacing:
 
         assert call_order == ["deface", "fastsurfer"], "Deface must run strictly before FastSurfer"
         assert s.load_file(file_ref) == b"DEFACED", "Raw upload was not replaced with defaced bytes"
+
+
+class TestRetention:
+    """expires_at fields that back the Firestore TTL policies documented in
+    CLAUDE.md — arbitrary bytes are enough here; nothing reads the upload as
+    a real scan on this path (FastSurfer/deface are both mocked)."""
+
+    def test_job_doc_expires_90_days_out(self, pipeline_client):
+        import storage
+        job_id = pipeline_client.post(
+            "/upload",
+            files={"file": ("scan.nii.gz", b"not a real scan", "application/gzip")},
+        ).json()["job_id"]
+
+        job = storage.get_storage().get_job(job_id)
+        assert "expires_at" in job
+        delta = job["expires_at"] - datetime.now(timezone.utc)
+        assert timedelta(days=89) < delta <= timedelta(days=90)
+
+    def test_results_doc_expires_365_days_out(self):
+        """FirebaseStorage.set_results stamps a 365-day expires_at. Checked
+        directly against a mocked Firestore client since LocalStorage (used
+        everywhere else in this file) has no retention concept at all —
+        only the production Firebase backend needs it."""
+        from unittest.mock import MagicMock
+        import storage as storage_module
+
+        fb = storage_module.FirebaseStorage.__new__(storage_module.FirebaseStorage)
+        fb._db = MagicMock()
+        doc_ref = fb._db.collection.return_value.document.return_value
+
+        fb.set_results("job-x", {"volume_percentiles": []})
+
+        written = doc_ref.set.call_args[0][0]
+        assert "expires_at" in written
+        delta = written["expires_at"] - datetime.now(timezone.utc)
+        assert timedelta(days=364) < delta <= timedelta(days=365)
