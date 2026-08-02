@@ -5,9 +5,12 @@ In production this runs as a Cloud Run Job execution, started by the
 Firestore-triggered dispatcher (see dispatcher.py) via the Cloud Run
 Admin API. In local dev it runs in a background thread via LocalQueue.
 """
+import logging
 import os
 import tempfile
 from pathlib import Path
+
+logger = logging.getLogger("mri.worker")
 
 FREESURFER_LICENSE = os.environ.get("FREESURFER_LICENSE", "./license.txt")
 FASTSURFER_OUTPUT_DIR = os.environ.get("FASTSURFER_OUTPUT_DIR", "./processed_data/web_jobs")
@@ -37,24 +40,32 @@ def process_job(job_id: str, file_ref: str) -> dict:
 
     storage = get_storage()
 
-    with tempfile.TemporaryDirectory() as staging:
-        subject_id = f"job_{job_id[:8]}"
-        anat_dir = Path(staging) / subject_id / "anat"
-        anat_dir.mkdir(parents=True)
+    logger.info("job_started", extra={"event": "job_started", "job_id": job_id})
+    try:
+        with tempfile.TemporaryDirectory() as staging:
+            subject_id = f"job_{job_id[:8]}"
+            anat_dir = Path(staging) / subject_id / "anat"
+            anat_dir.mkdir(parents=True)
 
-        staged_file = anat_dir / f"{subject_id}_T1w.nii.gz"
-        staged_file.write_bytes(storage.load_file(file_ref))
+            staged_file = anat_dir / f"{subject_id}_T1w.nii.gz"
+            staged_file.write_bytes(storage.load_file(file_ref))
 
-        output_dir = Path(FASTSURFER_OUTPUT_DIR) / job_id
-        run_fastsurfer(
-            subjects=[subject_id],
-            input_dir=staging,
-            output_dir=str(output_dir),
-            freesurfer_license=FREESURFER_LICENSE,
-        )
+            output_dir = Path(FASTSURFER_OUTPUT_DIR) / job_id
+            run_fastsurfer(
+                subjects=[subject_id],
+                input_dir=staging,
+                output_dir=str(output_dir),
+                freesurfer_license=FREESURFER_LICENSE,
+            )
 
-        subject_output = output_dir / subject_id
-        return compare_to_benchmark(str(subject_output))
+            subject_output = output_dir / subject_id
+            results = compare_to_benchmark(str(subject_output))
+    except Exception:
+        logger.exception("job_failed", extra={"event": "job_failed", "job_id": job_id})
+        raise
+
+    logger.info("job_completed", extra={"event": "job_completed", "job_id": job_id})
+    return results
 
 
 def attach_results_to_user(job_id: str, results: dict) -> None:

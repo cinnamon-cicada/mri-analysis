@@ -10,9 +10,12 @@ and both pass FIREBASE_STORAGE_BUCKET so the app is configured consistently.
 Requires application-default credentials (GOOGLE_APPLICATION_CREDENTIALS), the
 same as STORAGE_BACKEND=firebase.
 """
+import logging
 import os
 
 from fastapi import HTTPException
+
+logger = logging.getLogger("mri.auth")
 
 
 def _ensure_firebase_app() -> None:
@@ -36,6 +39,7 @@ def verify_bearer_token(authorization: str | None) -> dict:
     verification (bad signature, expired, wrong audience, etc.).
     """
     if not authorization or not authorization.lower().startswith("bearer "):
+        logger.warning("auth_failed", extra={"event": "auth_failed", "reason": "missing_bearer_token"})
         raise HTTPException(status_code=401, detail="missing bearer token")
     token = authorization.split(" ", 1)[1].strip()
 
@@ -44,5 +48,10 @@ def verify_bearer_token(authorization: str | None) -> dict:
 
     try:
         return fb_auth.verify_id_token(token)
-    except Exception:
+    except Exception as exc:
+        # Never log the token itself — only that verification failed and why.
+        logger.warning(
+            "auth_failed",
+            extra={"event": "auth_failed", "reason": "invalid_or_expired_token", "detail": str(exc)},
+        )
         raise HTTPException(status_code=401, detail="invalid or expired token")

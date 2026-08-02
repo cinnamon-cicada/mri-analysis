@@ -1,3 +1,4 @@
+import logging
 import time
 import uuid
 from contextlib import asynccontextmanager
@@ -16,6 +17,8 @@ from queue_system import get_queue
 from storage import get_storage
 
 import os
+
+logger = logging.getLogger("mri.app")
 
 limiter = Limiter(key_func=get_remote_address)
 
@@ -60,6 +63,10 @@ def _authorize_job_access(job: dict, authorization: str | None) -> None:
         return
     claims = verify_bearer_token(authorization)
     if claims.get("uid") != owner:
+        logger.warning(
+            "forbidden_job_access",
+            extra={"event": "forbidden_job_access", "job_owner": owner, "requester_uid": claims.get("uid")},
+        )
         raise HTTPException(status_code=403, detail="forbidden")
 
 
@@ -68,9 +75,17 @@ async def lifespan(app: FastAPI):
     yield
 
 
+def _log_rate_limit_exceeded(request: Request, exc: RateLimitExceeded):
+    logger.warning(
+        "rate_limit_exceeded",
+        extra={"event": "rate_limit_exceeded", "path": request.url.path, "client_ip": get_remote_address(request)},
+    )
+    return _rate_limit_exceeded_handler(request, exc)
+
+
 app = FastAPI(lifespan=lifespan)
 app.state.limiter = limiter
-app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+app.add_exception_handler(RateLimitExceeded, _log_rate_limit_exceeded)
 
 # Serve frontend in local dev; in production Firebase Hosting handles static assets.
 if os.path.isdir(FRONTEND_DIR):
@@ -163,6 +178,7 @@ async def upload(
 ):
     storage = get_storage()
     if storage.count_active_jobs() >= 5:
+        logger.warning("capacity_rejected", extra={"event": "capacity_rejected", "client_ip": get_remote_address(request)})
         return JSONResponse(
             {"error": "capacity", "message": "Please upload later due to reaching server capacity."},
             status_code=503,
