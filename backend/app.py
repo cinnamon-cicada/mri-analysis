@@ -23,6 +23,13 @@ check_hipaa_baa_confirmed()
 
 logger = logging.getLogger("mri.app")
 
+# Opt-in: only active once SENTRY_DSN is set (see security/risk-register.md
+# Track B.5). No-op locally/in dev where it's typically unset.
+if os.environ.get("SENTRY_DSN"):
+    import sentry_sdk
+
+    sentry_sdk.init(dsn=os.environ["SENTRY_DSN"], traces_sample_rate=0.0)
+
 limiter = Limiter(key_func=get_remote_address)
 
 # Hard cap on an uploaded scan, matching infra/storage.rules. Enforced by

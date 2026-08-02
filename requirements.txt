@@ -17,6 +17,9 @@ pydeface>=2.0.2
 # Rate limiting
 slowapi>=0.1.9
 
+# Error monitoring (only active when SENTRY_DSN is set — see backend/app.py)
+sentry-sdk[fastapi]>=2.0.0
+
 # Firebase / GCP (only needed when STORAGE_BACKEND=firebase)
 firebase-admin>=6.0.0
 
