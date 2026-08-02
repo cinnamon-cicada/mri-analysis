@@ -6,6 +6,21 @@ USER root
 
 RUN apt-get update && apt-get install -y python3-pip && rm -rf /var/lib/apt/lists/*
 
+# FSL's `flirt` binary — required by pydeface (see backend/deface.py) for the
+# registration step that removes facial geometry before FastSurfer runs.
+# NeuroDebian ships a minimal `fsl-core` package; FSL's own installer script
+# is a multi-GB download instead. This step depends on neuro.debian.net and a
+# keyserver being reachable at build time and is a known slower/flakier layer
+# than the rest of this image.
+RUN apt-get update && apt-get install -y --no-install-recommends wget gnupg lsb-release ca-certificates && \
+    wget -qO- http://neuro.debian.net/lists/$(lsb_release -cs).us-ca.full | tee /etc/apt/sources.list.d/neurodebian.sources.list && \
+    apt-key adv --recv-keys --keyserver hkp://keyserver.ubuntu.com:80 0xA5D32F012649A5A9 && \
+    apt-get update && apt-get install -y --no-install-recommends fsl-core && \
+    rm -rf /var/lib/apt/lists/*
+ENV FSLDIR=/usr/share/fsl/5.0
+ENV PATH="${FSLDIR}/bin:${PATH}"
+ENV FSLOUTPUTTYPE=NIFTI_GZ
+
 WORKDIR /app
 
 COPY requirements.txt .

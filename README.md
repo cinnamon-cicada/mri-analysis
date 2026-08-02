@@ -128,6 +128,15 @@ mkdir -p ~/.freesurfer
 mv license.txt ~/.freesurfer/
 ```
 
+#### 4. Install FSL (for defacing, via `pydeface`)
+
+Uploaded scans are defaced (see `backend/deface.py`) before they're stored or processed, using `pydeface`, which shells out to FSL's `flirt` binary. This runs on the host in local dev (the worker isn't containerized locally), so `flirt` needs to be on your `PATH` — the production worker image installs it via NeuroDebian's `fsl-core` package (see `infra/Dockerfile.worker`); a full FSL install works locally too.
+
+FSL has its own non-commercial license, separate from FreeSurfer's:
+1. Register at: https://fsl.fmrib.ox.ac.uk/fsldownloads_registration
+2. Follow FSL's install instructions for your platform (or use NeuroDebian's `fsl-core` package if you're on Debian/Ubuntu)
+3. Verify `flirt` is on your `PATH`: `which flirt`
+
 ### Project Setup
 ```bash
 # Clone the repository

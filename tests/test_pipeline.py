@@ -386,13 +386,16 @@ def pipeline_client(tmp_path, monkeypatch):
     """
     monkeypatch.chdir(tmp_path)
 
-    import storage, queue_system, utils
+    import storage, queue_system, utils, deface
     storage._backend = None
     queue_system._queue = None
 
     PIPELINE_OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
     monkeypatch.setattr("worker.FASTSURFER_OUTPUT_DIR", str(PIPELINE_OUTPUT_DIR))
     monkeypatch.setattr(utils, "run_fastsurfer_docker", _fake_fastsurfer)
+    # pydeface/FSL aren't installed in the test environment; defacing itself
+    # is covered separately in TestDefacing.
+    monkeypatch.setattr(deface, "deface_file", lambda path: None)
 
     from app import app
     with TestClient(app, raise_server_exceptions=True) as client:
@@ -412,7 +415,7 @@ def concurrency_client(tmp_path, monkeypatch):
     """
     monkeypatch.chdir(tmp_path)
 
-    import storage, queue_system, utils
+    import storage, queue_system, utils, deface
     storage._backend = None
     queue_system._queue = None
 
@@ -426,6 +429,7 @@ def concurrency_client(tmp_path, monkeypatch):
     PIPELINE_OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
     monkeypatch.setattr("worker.FASTSURFER_OUTPUT_DIR", str(PIPELINE_OUTPUT_DIR))
     monkeypatch.setattr(utils, "run_fastsurfer_docker", _gated_fastsurfer)
+    monkeypatch.setattr(deface, "deface_file", lambda path: None)
 
     from app import app
     with TestClient(app, raise_server_exceptions=True) as client:
@@ -443,7 +447,9 @@ def docker_pipeline_client(tmp_path, monkeypatch):
     Full-pipeline TestClient — FastSurfer runs for real via Docker.
 
     Requires Docker socket access and license.txt at the repo root (or
-    FREESURFER_LICENSE env var).  Output persists in tests/fixtures/web_jobs/.
+    FREESURFER_LICENSE env var), plus pydeface/FSL's `flirt` on PATH for the
+    real defacing step (see backend/deface.py). Output persists in
+    tests/fixtures/web_jobs/.
     """
     monkeypatch.chdir(tmp_path)
 
@@ -746,3 +752,43 @@ class TestAuthAndAccounts:
             "volume_percentiles": [["x", 0.5]], "thickness_percentiles": [],
         })
         assert s._users == {}
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Layer 6: HIPAA-readiness safeguards — BAA startup gate, defacing, retention,
+# and rate limits on job-status/results access.
+# ─────────────────────────────────────────────────────────────────────────────
+
+class TestDefacing:
+    """worker.process_job() must deface the staged scan before FastSurfer
+    sees it, and persist the defaced bytes back over the raw upload."""
+
+    def test_defaces_before_fastsurfer_and_overwrites_storage(self, tmp_path, monkeypatch):
+        monkeypatch.chdir(tmp_path)
+        import storage, utils, deface, worker
+        storage._backend = None
+
+        call_order = []
+
+        def _fake_deface(path):
+            call_order.append("deface")
+            Path(path).write_bytes(b"DEFACED")
+
+        def _fake_fastsurfer(subjects, input_dir, output_dir, freesurfer_license, n_threads=4):
+            call_order.append("fastsurfer")
+            staged = Path(input_dir) / subjects[0] / "anat" / f"{subjects[0]}_T1w.nii.gz"
+            assert staged.read_bytes() == b"DEFACED", "FastSurfer must only ever see defaced bytes"
+            for subject_id in subjects:
+                _populate_fastsurfer_output(Path(output_dir), subject_id)
+
+        monkeypatch.setattr(deface, "deface_file", _fake_deface)
+        monkeypatch.setattr(utils, "run_fastsurfer_docker", _fake_fastsurfer)
+        monkeypatch.setattr(worker, "FASTSURFER_OUTPUT_DIR", str(tmp_path / "fastsurfer_out"))
+
+        s = storage.get_storage()
+        file_ref = s.store_file("job-deface-test", b"RAW_FACE_BYTES")
+
+        worker.process_job("job-deface-test", file_ref)
+
+        assert call_order == ["deface", "fastsurfer"], "Deface must run strictly before FastSurfer"
+        assert s.load_file(file_ref) == b"DEFACED", "Raw upload was not replaced with defaced bytes"

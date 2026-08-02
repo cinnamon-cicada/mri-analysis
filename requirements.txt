@@ -10,6 +10,10 @@ pandas>=1.3.0
 scipy>=1.7.0
 nibabel>=5.0.0
 
+# De-identification (requires FSL's `flirt` binary on PATH — see
+# infra/Dockerfile.worker and README's Installation section for local dev)
+pydeface>=2.0.2
+
 # Rate limiting
 slowapi>=0.1.9
 

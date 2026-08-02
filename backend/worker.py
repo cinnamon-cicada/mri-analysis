@@ -35,6 +35,7 @@ def process_job(job_id: str, file_ref: str) -> dict:
     dict  Percentile results, written to storage by the queue runner.
     """
     from analysis import compare_to_benchmark
+    from deface import deface_file
     from storage import get_storage
     from utils import run_fastsurfer
 
@@ -49,6 +50,14 @@ def process_job(job_id: str, file_ref: str) -> dict:
 
             staged_file = anat_dir / f"{subject_id}_T1w.nii.gz"
             staged_file.write_bytes(storage.load_file(file_ref))
+
+            # Deface before anything else touches this file: overwrites the
+            # staged copy in place, then replaces the persisted raw upload
+            # with the defaced bytes so the facially-intact original is at
+            # rest for as short a window as possible (bounded by queue depth,
+            # not by the 30-day retention window in app.py/storage.py).
+            deface_file(staged_file)
+            storage.store_file(job_id, staged_file.read_bytes())
 
             output_dir = Path(FASTSURFER_OUTPUT_DIR) / job_id
             run_fastsurfer(
