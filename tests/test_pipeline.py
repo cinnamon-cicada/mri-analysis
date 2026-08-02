@@ -860,3 +860,28 @@ class TestRetention:
         assert "expires_at" in written
         delta = written["expires_at"] - datetime.now(timezone.utc)
         assert timedelta(days=364) < delta <= timedelta(days=365)
+
+
+class TestAccessRateLimits:
+    """/status and /results are rate-limited like /upload, so a job id
+    (guessed or otherwise) can't be polled without bound."""
+
+    @pytest.fixture
+    def client(self, tmp_path, monkeypatch):
+        monkeypatch.chdir(tmp_path)
+        import storage, queue_system
+        storage._backend = None
+        queue_system._queue = None
+        from app import app
+        with TestClient(app, raise_server_exceptions=True) as c:
+            yield c
+        storage._backend = None
+        queue_system._queue = None
+
+    def test_status_endpoint_rate_limited(self, client):
+        codes = [client.get("/status/00000000-0000-0000-0000-000000000000").status_code for _ in range(35)]
+        assert 429 in codes, f"Never hit the /status rate limit; codes: {set(codes)}"
+
+    def test_results_endpoint_rate_limited(self, client):
+        codes = [client.get("/results/00000000-0000-0000-0000-000000000000").status_code for _ in range(25)]
+        assert 429 in codes, f"Never hit the /results rate limit; codes: {set(codes)}"

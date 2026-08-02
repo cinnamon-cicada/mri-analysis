@@ -230,7 +230,8 @@ async def upload(
 
 
 @app.get("/status/{job_id}")
-async def get_status(job_id: str, authorization: str | None = Header(default=None)):
+@limiter.limit("30/minute")
+async def get_status(request: Request, job_id: str, authorization: str | None = Header(default=None)):
     job = get_storage().get_job(job_id)
     if job is None:
         return JSONResponse({"status": "not_found"}, status_code=404)
@@ -239,7 +240,8 @@ async def get_status(job_id: str, authorization: str | None = Header(default=Non
 
 
 @app.get("/results/{job_id}")
-async def get_results(job_id: str, authorization: str | None = Header(default=None)):
+@limiter.limit("20/minute")
+async def get_results(request: Request, job_id: str, authorization: str | None = Header(default=None)):
     storage = get_storage()
     job = storage.get_job(job_id)
     if job is None:
