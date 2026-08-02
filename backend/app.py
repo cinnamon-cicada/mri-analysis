@@ -13,10 +13,13 @@ from slowapi.util import get_remote_address
 
 from analysis import get_population_distribution, list_population_segments
 from auth import verify_bearer_token
+from config import check_hipaa_baa_confirmed
 from queue_system import get_queue
 from storage import get_storage
 
 import os
+
+check_hipaa_baa_confirmed()
 
 logger = logging.getLogger("mri.app")
 

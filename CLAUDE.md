@@ -78,6 +78,7 @@ This replaced an earlier Cloud-Tasks-based design: the worker was briefly a Clou
 | `GCP_WORKER_JOB_NAME` | Dispatcher | Cloud Run Job name; defaults to `mri-worker` if unset |
 | `FREESURFER_LICENSE` | Worker | Default: `./license.txt` (gitignored) |
 | `FASTSURFER_OUTPUT_DIR` | Worker | Default: `./processed_data/web_jobs` |
+| `HIPAA_BAA_CONFIRMED` | Firebase backend | Must be `true`; `backend/config.py` refuses to start against `STORAGE_BACKEND=firebase` otherwise. Only set this after the Google Cloud BAA (covering Firestore/Cloud Storage/Firebase Auth) has actually been executed in the console — the app can't verify that itself. |
 
 ## GCP Infrastructure
 

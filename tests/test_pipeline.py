@@ -759,6 +759,36 @@ class TestAuthAndAccounts:
 # and rate limits on job-status/results access.
 # ─────────────────────────────────────────────────────────────────────────────
 
+class TestBAAGate:
+    """backend/config.py's check_hipaa_baa_confirmed()."""
+
+    def test_raises_when_firebase_backend_unconfirmed(self, monkeypatch):
+        from config import check_hipaa_baa_confirmed
+        monkeypatch.setenv("STORAGE_BACKEND", "firebase")
+        monkeypatch.delenv("HIPAA_BAA_CONFIRMED", raising=False)
+        with pytest.raises(RuntimeError):
+            check_hipaa_baa_confirmed()
+
+    def test_raises_when_confirmation_flag_not_true(self, monkeypatch):
+        from config import check_hipaa_baa_confirmed
+        monkeypatch.setenv("STORAGE_BACKEND", "firebase")
+        monkeypatch.setenv("HIPAA_BAA_CONFIRMED", "false")
+        with pytest.raises(RuntimeError):
+            check_hipaa_baa_confirmed()
+
+    def test_passes_when_confirmed(self, monkeypatch):
+        from config import check_hipaa_baa_confirmed
+        monkeypatch.setenv("STORAGE_BACKEND", "firebase")
+        monkeypatch.setenv("HIPAA_BAA_CONFIRMED", "true")
+        check_hipaa_baa_confirmed()  # must not raise
+
+    def test_local_backend_is_never_gated(self, monkeypatch):
+        from config import check_hipaa_baa_confirmed
+        monkeypatch.delenv("STORAGE_BACKEND", raising=False)
+        monkeypatch.delenv("HIPAA_BAA_CONFIRMED", raising=False)
+        check_hipaa_baa_confirmed()  # must not raise
+
+
 class TestDefacing:
     """worker.process_job() must deface the staged scan before FastSurfer
     sees it, and persist the defaced bytes back over the raw upload."""
