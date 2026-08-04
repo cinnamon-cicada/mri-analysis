@@ -195,19 +195,17 @@ def get_comparison_results(subject_dirs: list) -> Dict:
     dict
         Dictionary with mean and std for each brain region
     """
-    print("[DEBUG] Starting ADHD summarization at", subject_dirs)
-    try:        
+    try:
         all_volumes = {}
         all_thickness = {}
         all_etiv = []
-        
+
         for subject_dir in subject_dirs:
             volumes = get_volume(subject_dir, analysis='adhd')
             thickness = get_thickness(subject_dir, analysis='adhd')
 
             if 'error' not in volumes:
                 for region, value in volumes['volumes'].items():
-                    print("[DEBUG] Region, volume:", region, value, len(all_volumes))
                     if region not in all_volumes:
                         all_volumes[region] = []
                     all_volumes[region].append(value)
@@ -221,18 +219,12 @@ def get_comparison_results(subject_dirs: list) -> Dict:
                         all_thickness[region] = []
                     all_thickness[region].append(value)
                 print("  Thickness processed.")
-        
+
         results = {
             'volumes': {},
             'thickness': {},
             'eTIV': {}
         }
-        # TODO: all_X is not working.
-        print("[DEBUG] Aggregating results from...", json.dumps({
-            'all_volumes': {k: len(v) for k, v in all_volumes.items()},
-            'all_thickness': {k: len(v) for k, v in all_thickness.items()},
-            'all_etiv_count': len(all_etiv)
-        }, indent=2))
         for region, values in all_volumes.items():
             results['volumes'][region] = {
                 'mean': np.mean(values),
@@ -250,7 +242,6 @@ def get_comparison_results(subject_dirs: list) -> Dict:
                 'mean': np.mean(all_etiv),
                 'std': np.std(all_etiv)
             }
-        print("[DEBUG] Final aggregated results:", json.dumps(results, indent=2))
         return results
         
     except Exception as e:
