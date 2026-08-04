@@ -4,6 +4,7 @@ import numpy as np
 import json
 from pathlib import Path
 
+from freesurfer_stats import iter_measure_comments, iter_region_thickness_rows, iter_structure_rows
 from stats_math import zscore_to_percentile
 
 _HCP_YA_CSV = Path(__file__).parent / "benchmark" / "HCP_YA_ALL.csv"
@@ -285,25 +286,17 @@ def get_volume(data_path: str,
         }
 
         aseg_file = os.path.join(stats_dir, 'aseg.stats')
-        with open(aseg_file, 'r') as f:
-            for line in f:
-                if line.startswith('# Measure EstimatedTotalIntraCranialVol'):
-                    parts = line.split(',')
-                    if len(parts) >= 4:
-                        results['eTIV'] = float(parts[3].strip())
 
-                if line.startswith('#'):
-                    continue
+        for name, value in iter_measure_comments(aseg_file):
+            if name == 'eTIV':
+                results['eTIV'] = value
 
-                parts = line.strip().split()
-                if len(parts) >= 5:
-                    structure = parts[4]
-                    if structure in volume_regions:
-                        volume_mm3 = float(parts[3])
-                        key = volume_regions[structure]
-                        results['volumes'][key] = volume_mm3
-                        if results['eTIV']:
-                            results['volumes'][f"{key}_adjusted"] = volume_mm3 / results['eTIV']
+        for structure, volume_mm3 in iter_structure_rows(aseg_file):
+            if structure in volume_regions:
+                key = volume_regions[structure]
+                results['volumes'][key] = volume_mm3
+                if results['eTIV']:
+                    results['volumes'][f"{key}_adjusted"] = volume_mm3 / results['eTIV']
 
         return results
 
@@ -353,19 +346,11 @@ def get_thickness(data_path: str, analysis: str = 'adhd') -> Dict:
             if not os.path.exists(aparc_file):
                 aparc_file = os.path.join(stats_dir, f'{hemi}.aparc.stats')
 
-            with open(aparc_file, 'r') as f:
-                for line in f:
-                    if line.startswith('#'):
-                        continue
-
-                    parts = line.strip().split()
-                    if len(parts) >= 5:
-                        region = parts[0]
-                        if region in thickness_regions:
-                            thickness_mm = float(parts[4])
-                            region_type = thickness_regions[region]
-                            key = f"{hemi}_{region_type}_{region}"
-                            results['thickness'][key] = thickness_mm
+            for region, thickness_mm in iter_region_thickness_rows(aparc_file):
+                if region in thickness_regions:
+                    region_type = thickness_regions[region]
+                    key = f"{hemi}_{region_type}_{region}"
+                    results['thickness'][key] = thickness_mm
 
         return results
         

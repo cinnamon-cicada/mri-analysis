@@ -4,6 +4,7 @@ import pandas as pd
 from pathlib import Path
 from typing import Dict, List, Optional
 from utils import run_fastsurfer_docker, human_readable_cols, aseg_mapping
+from freesurfer_stats import iter_measure_comments, iter_region_thickness_rows, iter_structure_rows
 from stats_math import zscore_to_percentile
 
 # ----------------------------------------------------------------------
@@ -116,35 +117,13 @@ def extract_aseg_stats(subject_id: str, subjects_path: str = None) -> Dict[str, 
         print(f"Warning: aseg.stats not found for {subject_id}")
         return volumes
 
-    with open(stats_file, 'r') as f:
-        for line in f:
-            line = line.strip()
-            if "Thalamus" in line:
-                parts = line.split()
-                measure_name = parts[4]
-                value = float(parts[3])
-                if measure_name in aseg_mapping:
-                    volumes[aseg_mapping[measure_name]] = value
+    for measure_name, value in iter_measure_comments(stats_file):
+        if measure_name in aseg_mapping:
+            volumes[aseg_mapping[measure_name]] = value
 
-            if line.startswith('# Measure'):
-                parts = line.split(',')
-
-                if len(parts) >= 4:
-                    measure_name = parts[1].strip()
-                    value = float(parts[3].strip())
-
-                    if measure_name in aseg_mapping:
-                        volumes[aseg_mapping[measure_name]] = value
-
-            # Parse structure lines
-            elif not line.startswith('#') and line:
-                parts = line.split()
-                if len(parts) >= 5:
-                    struct_name = parts[4]
-                    volume = float(parts[3])
-
-                    if struct_name in aseg_mapping:
-                        volumes[aseg_mapping[struct_name]] = volume
+    for struct_name, volume in iter_structure_rows(stats_file):
+        if struct_name in aseg_mapping:
+            volumes[aseg_mapping[struct_name]] = volume
 
     return volumes
 
@@ -171,22 +150,10 @@ def extract_aparc_stats(subject_id: str, hemisphere: str, subjects_path: str = N
     
     prefix = 'FS_L_' if hemisphere == 'lh' else 'FS_R_'
 
-    with open(stats_file, 'r') as f:
-        for line in f:
-            if line.startswith('#') or not line.strip():
-                continue
-
-            parts = line.split()
-            if len(parts) >= 5:
-                region_name = parts[0]
-                thick_mean = float(parts[4])
-
-                # Check if this region is in our list
-                for region in thickness_regions:
-                    if region_name == region:
-                        col_name = f"{prefix}{region.capitalize()}_Thck"
-                        thickness[col_name] = thick_mean
-                        break
+    for region_name, thick_mean in iter_region_thickness_rows(stats_file):
+        if region_name in thickness_regions:
+            col_name = f"{prefix}{region_name.capitalize()}_Thck"
+            thickness[col_name] = thick_mean
 
     return thickness
 
