@@ -156,6 +156,60 @@ def run_fastsurfer(subjects: list,
     )
 
 
+def _run_fastsurfer_subjects(subjects: list, input_dir: Path, output_dir: Path,
+                              build_cmd, header: str, env: Optional[dict] = None) -> None:
+    """
+    Shared per-subject loop for run_fastsurfer_native/_docker: locates each
+    subject's T1w file, builds and runs the FastSurfer command, and reports
+    success/failure. `build_cmd(subject_id, t1_file)` returns the argv list;
+    the two variants differ only in that.
+    """
+    print("=" * 60)
+    print(header)
+    print("=" * 60)
+    print("")
+
+    for subject_id in subjects:
+        anat_dir = input_dir / subject_id / "anat"
+        t1_files = list(anat_dir.glob(f"{subject_id}_T1w.nii.gz"))
+
+        if not t1_files:
+            print(f"  ✗ T1w file not found in {anat_dir}")
+            continue
+
+        cmd = build_cmd(subject_id, t1_files[0])
+
+        print(f"  Running FastSurfer...")
+        print(f"  Command:\n    " + " \\\n    ".join(cmd))
+
+        try:
+            subprocess.run(
+                cmd,
+                check=True,
+                capture_output=True,
+                text=True,
+                timeout=86400,  # 24h ceiling — FastSurfer runs can take many hours per subject
+                env=env,
+            )
+            print(f"  ✓ FastSurfer completed successfully!")
+            print(f"  Output: {output_dir / subject_id}")
+        except subprocess.CalledProcessError as e:
+            print(f"  ✗ FastSurfer failed (exit {e.returncode})")
+            if e.stdout:
+                print("  STDOUT:\n", e.stdout[-3000:])
+            if e.stderr:
+                print("  STDERR:\n", e.stderr[-3000:])
+            raise
+        except Exception as e:
+            print(f"  ✗ FastSurfer failed: {str(e)}")
+            raise
+
+        print("")
+
+    print(f"FastSurfer processing complete")
+    print("=" * 60)
+
+
 def run_fastsurfer_native(subjects: list,
                           input_dir: str, output_dir: str,
                           freesurfer_license: str,
@@ -179,22 +233,10 @@ def run_fastsurfer_native(subjects: list,
     )
     env = {**os.environ, "FS_LICENSE": str(license_path)}
 
-    print("=" * 60)
-    print("Running FastSurfer natively (in-container, no Docker)")
-    print("=" * 60)
-    print("")
-
-    for subject_id in subjects:
-        anat_dir = input_dir / subject_id / "anat"
-        t1_files = list(anat_dir.glob(f"{subject_id}_T1w.nii.gz"))
-
-        if not t1_files:
-            print(f"  ✗ T1w file not found in {anat_dir}")
-            continue
-
-        cmd = [
+    def build_cmd(subject_id: str, t1_file: Path) -> list:
+        return [
             run_script,
-            "--t1", str(t1_files[0]),
+            "--t1", str(t1_file),
             "--sid", subject_id,
             "--sd", str(output_dir),
             "--threads", str(n_threads),
@@ -202,35 +244,10 @@ def run_fastsurfer_native(subjects: list,
             "--vox_size", "1.0",
         ]
 
-        print(f"  Running FastSurfer...")
-        print(f"  Command:\n    " + " \\\n    ".join(cmd))
-
-        try:
-            subprocess.run(
-                cmd,
-                check=True,
-                capture_output=True,
-                text=True,
-                timeout=86400,  # 24h ceiling — matches the Cloud Run Job timeout
-                env=env,
-            )
-            print(f"  ✓ FastSurfer completed successfully!")
-            print(f"  Output: {output_dir / subject_id}")
-        except subprocess.CalledProcessError as e:
-            print(f"  ✗ FastSurfer failed (exit {e.returncode})")
-            if e.stdout:
-                print("  STDOUT:\n", e.stdout[-3000:])
-            if e.stderr:
-                print("  STDERR:\n", e.stderr[-3000:])
-            raise
-        except Exception as e:
-            print(f"  ✗ FastSurfer failed: {str(e)}")
-            raise
-
-        print("")
-
-    print(f"FastSurfer processing complete")
-    print("=" * 60)
+    _run_fastsurfer_subjects(
+        subjects, input_dir, output_dir, build_cmd, env=env,
+        header="Running FastSurfer natively (in-container, no Docker)",
+    )
 
 
 def run_fastsurfer_docker(subjects: list,
@@ -240,7 +257,7 @@ def run_fastsurfer_docker(subjects: list,
                           ) -> Dict:
     """
     Run FastSurfer using Docker directly after preprocessing.
-    
+
     Parameters:
     -----------
     subjects : list
@@ -253,41 +270,24 @@ def run_fastsurfer_docker(subjects: list,
         Path to FreeSurfer license file
     n_threads : int, default=4
         Number of threads to use
-    
+
     Returns:
     --------
     dict : Results of FastSurfer processing for each subject
     """
-    
+
     input_dir = Path(input_dir).resolve()
     output_dir = Path(output_dir).resolve()
     freesurfer_license = Path(freesurfer_license).resolve()
-    
+
     output_dir.mkdir(parents=True, exist_ok=True)
-    
+
     # Get current user ID and group ID
     uid = str(os.getuid())
     gid = str(os.getgid())
-    print("=" * 60)
-    print("Running FastSurfer with Docker")
-    print("=" * 60)
-    print("")
 
-    for subject_id in subjects:        
-        # Get T1 file path relative to input_dir
-        subj_dir = input_dir / subject_id
-        
-        # Find the T1 file in the subject's anat directory
-        anat_dir = subj_dir / "anat"
-        t1_files = list(anat_dir.glob(f"{subject_id}_T1w.nii.gz"))
-        
-        if not t1_files:
-            print(f"  ✗ T1w file not found in {anat_dir}")
-            continue
-
-        t1_filename = t1_files[0].name
-
-        docker_cmd = [
+    def build_cmd(subject_id: str, t1_file: Path) -> list:
+        return [
             "docker", "run", "--rm",
             # "--gpus", "all",                     # GPU access
             "-u", f"{uid}:{gid}",                # Run as current user
@@ -298,7 +298,7 @@ def run_fastsurfer_docker(subjects: list,
             "-v", f"{output_dir}:/output",
             "-v", f"{freesurfer_license}:/opt/freesurfer/license.txt:ro",
             "deepmi/fastsurfer:latest",
-            "--t1", f"/input/{subject_id}/anat/{t1_filename}",
+            "--t1", f"/input/{subject_id}/anat/{t1_file.name}",
             "--sid", subject_id,
             # "--sd", f"{output_dir}",
             "--sd", "/output",
@@ -307,36 +307,10 @@ def run_fastsurfer_docker(subjects: list,
             "--vox_size", "1.0",
         ]
 
-        print(f"  Running FastSurfer...")
-        print(f"  Command:\n    " + " \\\n    ".join(docker_cmd))
-
-        try:
-            subprocess.run(
-                docker_cmd,
-                check=True,
-                capture_output=True,
-                text=True,
-                timeout=86400  # 24h ceiling — FastSurfer runs can take many hours per subject
-            )
-
-            print(f"  ✓ FastSurfer completed successfully!")
-            print(f"  Output: {output_dir / subject_id}")
-
-        except subprocess.CalledProcessError as e:
-            print(f"  ✗ FastSurfer failed (exit {e.returncode})")
-            if e.stdout:
-                print("  STDOUT:\n", e.stdout[-3000:])
-            if e.stderr:
-                print("  STDERR:\n", e.stderr[-3000:])
-            raise
-        except Exception as e:
-            print(f"  ✗ FastSurfer failed: {str(e)}")
-            raise
-        
-        print("")
-
-    print(f"FastSurfer processing complete")
-    print("=" * 60)
+    _run_fastsurfer_subjects(
+        subjects, input_dir, output_dir, build_cmd,
+        header="Running FastSurfer with Docker",
+    )
 
 
 def prepare_for_fastsurfer(input_dir):
