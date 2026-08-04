@@ -2,8 +2,9 @@ from typing import Dict, List, Optional
 import os
 import numpy as np
 import json
-from math import erf, sqrt
 from pathlib import Path
+
+from stats_math import zscore_to_percentile
 
 _HCP_YA_CSV = Path(__file__).parent / "benchmark" / "HCP_YA_ALL.csv"
 
@@ -38,12 +39,6 @@ def compare_to_benchmark(subject_dir: str) -> dict:
     subject_id = Path(subject_dir).name
     measurements = extract_all_measurements(subject_id, subject_dir)
 
-    def _percentile(value: float, mean: float, std: float) -> float:
-        if std == 0:
-            return 0.5
-        z = (value - mean) / std
-        return 0.5 * (1 + erf(z / sqrt(2)))
-
     volume_percentiles = []
     thickness_percentiles = []
 
@@ -56,7 +51,7 @@ def compare_to_benchmark(subject_dir: str) -> dict:
         if len(col_data) == 0:
             continue
         value = float(measurements[col])
-        pct = _percentile(value, col_data.mean(), col_data.std())
+        pct = zscore_to_percentile(value, col_data.mean(), col_data.std())
         label = human_readable_cols.get(col, col)
         if "_Vol" in col:
             volume_percentiles.append([label, pct, value])
@@ -150,8 +145,7 @@ def run_adhd_analysis() -> None:
         value = lab_data['volumes'][region]['mean']
         mean = outside_data['volumes'][region]['mean']
         std = outside_data['volumes'][region]['std']
-        z_score = (value - mean) / std if std != 0 else 0
-        percentile = 0.5 * (1 + erf(z_score / sqrt(2)))
+        percentile = zscore_to_percentile(value, mean, std)
         volume_percentiles.append((region, percentile))
 
     for region in outside_data['thickness']:
@@ -162,8 +156,7 @@ def run_adhd_analysis() -> None:
         value = lab_data['thickness'][region]['mean']
         mean = outside_data['thickness'][region]['mean']
         std = outside_data['thickness'][region]['std']
-        z_score = (value - mean) / std if std != 0 else 0
-        percentile = 0.5 * (1 + erf(z_score / sqrt(2)))
+        percentile = zscore_to_percentile(value, mean, std)
         thickness_percentiles.append((region, percentile))
 
     # Sort by descending percentile
@@ -253,12 +246,14 @@ def get_volume(data_path: str,
 ) -> Dict:
     """
     Extract volume measurements for specific analyses.
-    
+
     Parameters
     ----------
     data_path : str
         Path to FreeSurfer subject directory
-        
+    analysis : str
+        Type of analysis ('adhd' supported)
+
     Returns
     -------
     dict
@@ -266,26 +261,29 @@ def get_volume(data_path: str,
     """
     try:
         stats_dir = os.path.join(data_path, 'stats')
-        
-        volume_regions = {
-            'Left-Caudate': 'caudate_left',
-            'Right-Caudate': 'caudate_right',
-            'Left-Putamen': 'putamen_left',
-            'Right-Putamen': 'putamen_right',
-            'Left-Accumbens-area': 'accumbens_left',
-            'Right-Accumbens-area': 'accumbens_right',
-            'Left-Cerebellum-Cortex': 'cerebellum_cortex_left',
-            'Right-Cerebellum-Cortex': 'cerebellum_cortex_right',
-            'Cerebellar-Vermal-Lobules-I-V': 'cerebellum_vermis_I-V',
-            'Cerebellar-Vermal-Lobules-VI-VII': 'cerebellum_vermis_VI-VII',
-            'Cerebellar-Vermal-Lobules-VIII-X': 'cerebellum_vermis_VIII-X'
-        }
+
+        if analysis == 'adhd':
+            volume_regions = {
+                'Left-Caudate': 'caudate_left',
+                'Right-Caudate': 'caudate_right',
+                'Left-Putamen': 'putamen_left',
+                'Right-Putamen': 'putamen_right',
+                'Left-Accumbens-area': 'accumbens_left',
+                'Right-Accumbens-area': 'accumbens_right',
+                'Left-Cerebellum-Cortex': 'cerebellum_cortex_left',
+                'Right-Cerebellum-Cortex': 'cerebellum_cortex_right',
+                'Cerebellar-Vermal-Lobules-I-V': 'cerebellum_vermis_I-V',
+                'Cerebellar-Vermal-Lobules-VI-VII': 'cerebellum_vermis_VI-VII',
+                'Cerebellar-Vermal-Lobules-VIII-X': 'cerebellum_vermis_VIII-X'
+            }
+        else:
+            raise ValueError(f"Analysis type '{analysis}' not supported")
 
         results = {
             'volumes': {},
             'eTIV': None
         }
-        
+
         aseg_file = os.path.join(stats_dir, 'aseg.stats')
         with open(aseg_file, 'r') as f:
             for line in f:
@@ -293,10 +291,10 @@ def get_volume(data_path: str,
                     parts = line.split(',')
                     if len(parts) >= 4:
                         results['eTIV'] = float(parts[3].strip())
-                
+
                 if line.startswith('#'):
                     continue
-                    
+
                 parts = line.strip().split()
                 if len(parts) >= 5:
                     structure = parts[4]
@@ -306,9 +304,9 @@ def get_volume(data_path: str,
                         results['volumes'][key] = volume_mm3
                         if results['eTIV']:
                             results['volumes'][f"{key}_adjusted"] = volume_mm3 / results['eTIV']
-        
+
         return results
-        
+
     except Exception as e:
         return {
             'error': str(e),
@@ -349,7 +347,7 @@ def get_thickness(data_path: str, analysis: str = 'adhd') -> Dict:
             raise ValueError(f"Analysis type '{analysis}' not supported")
         
         results = {'thickness': {}}
-        
+
         for hemi in ['lh', 'rh']:
             aparc_file = os.path.join(stats_dir, f'{hemi}.aparc.DKTatlas.mapped.stats')
             if not os.path.exists(aparc_file):
@@ -359,7 +357,7 @@ def get_thickness(data_path: str, analysis: str = 'adhd') -> Dict:
                 for line in f:
                     if line.startswith('#'):
                         continue
-                        
+
                     parts = line.strip().split()
                     if len(parts) >= 5:
                         region = parts[0]
@@ -368,7 +366,7 @@ def get_thickness(data_path: str, analysis: str = 'adhd') -> Dict:
                             region_type = thickness_regions[region]
                             key = f"{hemi}_{region_type}_{region}"
                             results['thickness'][key] = thickness_mm
-        
+
         return results
         
     except Exception as e:

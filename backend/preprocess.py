@@ -4,7 +4,7 @@ import pandas as pd
 from pathlib import Path
 from typing import Dict, List, Optional
 from utils import run_fastsurfer_docker, human_readable_cols, aseg_mapping
-import scipy.stats as stats
+from stats_math import zscore_to_percentile
 
 # ----------------------------------------------------------------------
 # 1. Preprocessing for ADHD Analysis - OUTSIDE DATASET
@@ -111,11 +111,11 @@ def extract_aseg_stats(subject_id: str, subjects_path: str = None) -> Dict[str, 
         return {}
     stats_file = Path(subjects_path) / 'stats' / 'aseg.stats'
     volumes = {}
-    
+
     if not stats_file.exists():
         print(f"Warning: aseg.stats not found for {subject_id}")
         return volumes
-            
+
     with open(stats_file, 'r') as f:
         for line in f:
             line = line.strip()
@@ -132,20 +132,20 @@ def extract_aseg_stats(subject_id: str, subjects_path: str = None) -> Dict[str, 
                 if len(parts) >= 4:
                     measure_name = parts[1].strip()
                     value = float(parts[3].strip())
-                    
+
                     if measure_name in aseg_mapping:
                         volumes[aseg_mapping[measure_name]] = value
-            
+
             # Parse structure lines
             elif not line.startswith('#') and line:
                 parts = line.split()
                 if len(parts) >= 5:
                     struct_name = parts[4]
                     volume = float(parts[3])
-                    
+
                     if struct_name in aseg_mapping:
                         volumes[aseg_mapping[struct_name]] = volume
-    
+
     return volumes
 
 def extract_aparc_stats(subject_id: str, hemisphere: str, subjects_path: str = None) -> Dict[str, float]:
@@ -170,24 +170,24 @@ def extract_aparc_stats(subject_id: str, hemisphere: str, subjects_path: str = N
         return thickness
     
     prefix = 'FS_L_' if hemisphere == 'lh' else 'FS_R_'
-    
+
     with open(stats_file, 'r') as f:
         for line in f:
             if line.startswith('#') or not line.strip():
                 continue
-            
+
             parts = line.split()
             if len(parts) >= 5:
                 region_name = parts[0]
                 thick_mean = float(parts[4])
-                
+
                 # Check if this region is in our list
                 for region in thickness_regions:
                     if region_name == region:
                         col_name = f"{prefix}{region.capitalize()}_Thck"
                         thickness[col_name] = thick_mean
                         break
-    
+
     return thickness
 
 def extract_all_measurements(subject_id: str, subject_path = None) -> Dict[str, float]:
@@ -229,10 +229,11 @@ def run_outlier_analysis(data_path: str) -> Dict[str, List]:
     z_scores = {'volume_percentiles': [], 'thickness_percentiles': []}
 
     for part in ref_df.columns:
+        if part not in lab_data:
+            continue
         mean = ref_df[part].mean()
         std = ref_df[part].std()
-        z_score = (lab_data[part] - mean) / std #TODO: debug. part not found.
-        percentile = stats.norm.cdf(z_score)
+        percentile = zscore_to_percentile(lab_data[part], mean, std)
 
         if '_Vol' in part:
             z_scores['volume_percentiles'].append([human_readable_cols[part], percentile])
