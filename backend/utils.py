@@ -237,8 +237,15 @@ def run_fastsurfer_native(subjects: list,
     )
     env = {**os.environ, "FS_LICENSE": str(license_path)}
 
+    # The macOS pkg isn't on PATH and ships its own python + FreeSurfer; its
+    # setup script must be sourced first, or run_fastsurfer.sh picks up
+    # whatever python3 is on PATH and runs without FREESURFER_HOME.
+    macos_setup = Path(fastsurfer_home) / "macos_setup_fastsurfer.sh"
+    prefix = (["bash", "-c", 'source "$0" >/dev/null && exec "$@"', str(macos_setup)]
+              if macos_setup.exists() else [])
+
     def build_cmd(subject_id: str, t1_file: Path) -> list:
-        return [
+        return prefix + [
             run_script,
             "--t1", str(t1_file),
             "--sid", subject_id,
@@ -250,7 +257,7 @@ def run_fastsurfer_native(subjects: list,
 
     _run_fastsurfer_subjects(
         subjects, input_dir, output_dir, build_cmd, env=env,
-        header="Running FastSurfer natively (in-container, no Docker)",
+        header="Running FastSurfer natively (no Docker)",
     )
 
 
