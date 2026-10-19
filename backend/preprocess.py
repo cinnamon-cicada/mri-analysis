@@ -3,7 +3,7 @@ import glob
 import pandas as pd
 from pathlib import Path
 from typing import Dict, List, Optional
-from utils import run_fastsurfer_docker, human_readable_cols, aseg_mapping
+from utils import run_fastsurfer, human_readable_cols, aseg_mapping
 from freesurfer_stats import iter_measure_comments, iter_region_thickness_rows, iter_structure_rows
 from stats_math import zscore_to_percentile
 
@@ -17,7 +17,8 @@ def preprocess_adhd200(
     freesurfer_license: Optional[str] = None
 ) -> None:
     """
-    Run FastSurfer (GPU-accelerated FreeSurfer alternative) via Docker.
+    Run FastSurfer (GPU-accelerated FreeSurfer alternative) via Docker, or
+    natively when FASTSURFER_MODE=native (see utils.run_fastsurfer).
 
     Parameters
     ----------
@@ -57,8 +58,8 @@ def preprocess_adhd200(
 
         print(f"Pre-processing subject: {subj}")
 
-        # Run FastSurfer Docker command
-        run_fastsurfer_docker([subj], input_dir, output_dir, freesurfer_license, n_threads)
+        # Run FastSurfer (Docker or native, per FASTSURFER_MODE)
+        run_fastsurfer([subj], input_dir, output_dir, freesurfer_license, n_threads)
 
 
 

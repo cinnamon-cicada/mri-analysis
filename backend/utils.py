@@ -141,7 +141,10 @@ def run_fastsurfer(subjects: list,
       run_fastsurfer.sh directly, in-process. The worker image is built
       FROM deepmi/fastsurfer, so FastSurfer and its deps are already present.
       Cloud Run Jobs cannot run `docker run` (no daemon, no privileged mode),
-      so nesting Docker is not an option there.
+      so nesting Docker is not an option there. Also used on Apple silicon
+      with the FastSurfer >=2.6 macOS pkg: set
+      FASTSURFER_HOME=/Applications/FastSurfer<version> (native arm64 build,
+      no amd64 emulation).
     - ``docker`` (default; local dev + batch pipeline on a real host): shell
       out to `docker run deepmi/fastsurfer:latest` as before.
     """
@@ -217,7 +220,8 @@ def run_fastsurfer_native(subjects: list,
                           ) -> Dict:
     """
     Run FastSurfer directly (no Docker), for use INSIDE the FastSurfer
-    container image (the Cloud Run Job worker). Invokes run_fastsurfer.sh
+    container image (the Cloud Run Job worker) or against a native macOS
+    install (FASTSURFER_HOME=/Applications/FastSurfer<version>). Invokes run_fastsurfer.sh
     from FASTSURFER_HOME and passes the license path via FS_LICENSE, mirroring
     the flags used by run_fastsurfer_docker().
     """
@@ -404,7 +408,7 @@ def preprocess_lab_data(input_dir: str = '/lab_data',
                         freesurfer_license: Optional[str] = None):
     subjects = prepare_for_fastsurfer(input_dir=input_dir)
     output_dir = os.path.abspath(output_dir)
-    run_fastsurfer_docker(
+    run_fastsurfer(
         subjects=subjects,
         input_dir=input_dir,
         output_dir=output_dir,
