@@ -293,6 +293,7 @@ def run_fastsurfer_docker(subjects: list,
     def build_cmd(subject_id: str, t1_file: Path) -> list:
         return [
             "docker", "run", "--rm",
+            "--platform", "linux/amd64",         # image is amd64-only; required on arm64 hosts
             # "--gpus", "all",                     # GPU access
             "-u", f"{uid}:{gid}",                # Run as current user
             "-e", "HOME=/tmp",
