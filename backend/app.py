@@ -6,9 +6,8 @@ from datetime import datetime, timedelta, timezone
 
 from fastapi import FastAPI, File, Header, HTTPException, Request, UploadFile
 from fastapi.encoders import jsonable_encoder
-from fastapi.responses import JSONResponse
+from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
-from fastapi.templating import Jinja2Templates
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from slowapi.util import get_remote_address
@@ -108,23 +107,23 @@ app.add_exception_handler(RateLimitExceeded, _log_rate_limit_exceeded)
 # Serve frontend in local dev; in production Firebase Hosting handles static assets.
 if os.path.isdir(FRONTEND_DIR):
     app.mount("/static", StaticFiles(directory=FRONTEND_DIR), name="static")
-    templates = Jinja2Templates(directory=FRONTEND_DIR)
 
+    # The pages are plain HTML (no template syntax), so serve them as files.
     @app.get("/")
-    async def home(request: Request):
-        return templates.TemplateResponse(request, "home.html")
+    async def home():
+        return FileResponse(os.path.join(FRONTEND_DIR, "home.html"))
 
     @app.get("/data")
-    async def data_page(request: Request):
-        return templates.TemplateResponse(request, "data.html")
+    async def data_page():
+        return FileResponse(os.path.join(FRONTEND_DIR, "data.html"))
 
     @app.get("/login")
-    async def login_page(request: Request):
-        return templates.TemplateResponse(request, "login.html")
+    async def login_page():
+        return FileResponse(os.path.join(FRONTEND_DIR, "login.html"))
 
     @app.get("/self")
-    async def self_page(request: Request):
-        return templates.TemplateResponse(request, "self.html")
+    async def self_page():
+        return FileResponse(os.path.join(FRONTEND_DIR, "self.html"))
 
 
 @app.get("/healthz")
