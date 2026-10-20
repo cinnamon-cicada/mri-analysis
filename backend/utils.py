@@ -132,7 +132,7 @@ aseg_mapping = {
 def run_fastsurfer(subjects: list,
                    input_dir: str, output_dir: str,
                    freesurfer_license: str,
-                   n_threads=4
+                   n_threads=8
                    ) -> Dict:
     """
     Run FastSurfer, picking the invocation mode from FASTSURFER_MODE.
@@ -216,7 +216,7 @@ def _run_fastsurfer_subjects(subjects: list, input_dir: Path, output_dir: Path,
 def run_fastsurfer_native(subjects: list,
                           input_dir: str, output_dir: str,
                           freesurfer_license: str,
-                          n_threads=4
+                          n_threads=8
                           ) -> Dict:
     """
     Run FastSurfer directly (no Docker), for use INSIDE the FastSurfer
@@ -264,7 +264,7 @@ def run_fastsurfer_native(subjects: list,
 def run_fastsurfer_docker(subjects: list,
                           input_dir: str, output_dir: str,
                           freesurfer_license: str,
-                          n_threads=4
+                          n_threads=8
                           ) -> Dict:
     """
     Run FastSurfer using Docker directly after preprocessing.
@@ -279,7 +279,7 @@ def run_fastsurfer_docker(subjects: list,
         Directory for FastSurfer output
     freesurfer_license : str or Path
         Path to FreeSurfer license file
-    n_threads : int, default=4
+    n_threads : int, default=8
         Number of threads to use
 
     Returns:

@@ -13,7 +13,7 @@ from stats_math import zscore_to_percentile
 def preprocess_adhd200(
     input_dir: str = './outside_data/adhd200',
     output_dir: str = './processed_data/adhd200_fastsurfer',
-    n_threads: int = 4,
+    n_threads: int = 8,
     freesurfer_license: Optional[str] = None
 ) -> None:
     """
