@@ -67,7 +67,7 @@ processed_data/outlier_lab/
 
 ### Pre-Processed Datasets
 - The ADHD200/WashU preprocessed dataset was downloaded at this link (9GB): https://www.nitrc.org/frs/downloadlink.php/3270
-- For the batch preprocessing/analysis pipeline, run `cd backend && python main.py 1` (see CLAUDE.md).
+- For the batch preprocessing/analysis pipeline, run `cd backend && python main.py 2` (see CLAUDE.md).
 
 ## Pipeline
 
@@ -191,9 +191,7 @@ Research datasets, no web app:
 
 ```bash
 cd backend
-python main.py 1      # ADHD-200 comparison
 python main.py 2      # Outlier/uniqueness vs HCP-YA
-python main.py 1 2    # Both in sequence
 ```
 
 ## Built With
@@ -221,4 +219,3 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 ## Roadmap
 
 - [ ] Review and customize WashU data preprocessing
-- [ ] Outline ADHD analysis workflow

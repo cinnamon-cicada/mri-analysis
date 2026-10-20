@@ -24,9 +24,7 @@ pip install -r requirements.txt -r requirements-dev.txt
 # Run batch analysis pipeline (with venv active; paths resolve from repo root
 # regardless of cwd). On Apple silicon, first select the native FastSurfer pkg:
 #   export FASTSURFER_MODE=native FASTSURFER_HOME=/Applications/FastSurfer2.6.0
-cd backend && python main.py 1        # ADHD-200 comparison
 cd backend && python main.py 2        # Outlier/uniqueness vs HCP-YA
-cd backend && python main.py 1 2      # Run both in sequence
 ```
 
 ## Architecture
@@ -61,11 +59,11 @@ This replaced an earlier Cloud-Tasks-based design: the worker was briefly a Clou
 
 `backend/main.py` orchestrates preprocessing and analysis for research datasets. Inputs must be organized as `{input_dir}/{subject_id}/anat/{subject_id}_T1w.nii.gz`. FastSurfer outputs go to `./processed_data/`, results to `./analysis/`.
 
-`backend/preprocess.py` handles ADHD-200-specific preprocessing (downloading, organizing). `backend/utils.py` handles generic FastSurfer preparation (RAS reorientation, compression) and the Docker invocation shared with the web worker.
+`backend/preprocess.py` handles HCP-YA-style stats extraction and the outlier analysis. `backend/utils.py` handles generic FastSurfer preparation (RAS reorientation, compression) and the Docker invocation shared with the web worker.
 
 ### Benchmark stats
 
-`backend/benchmark/HCP_YA_ALL.csv` holds the HCP-YA general population reference data (N=889). `analysis.compare_to_benchmark()` and `preprocess.run_outlier_analysis()` load it directly (via a path relative to `backend/`) and compute percentiles from live population stats. The `analysis` parameter in `get_volume()` / `get_thickness()` selects which region set to extract — currently only `'adhd'` is implemented.
+`backend/benchmark/HCP_YA_ALL.csv` holds the HCP-YA general population reference data (N=889). `analysis.compare_to_benchmark()` and `preprocess.run_outlier_analysis()` load it directly (via a path relative to `backend/`) and compute percentiles from live population stats.
 
 ## Environment Variables
 

@@ -2,12 +2,9 @@
 Low-level line parsing for FreeSurfer/FastSurfer stats files (aseg.stats,
 {lh,rh}.aparc*.stats).
 
-Shared by analysis.py (get_volume/get_thickness — internal ADHD-200 region
-keys) and preprocess.py (extract_aseg_stats/extract_aparc_stats — HCP-YA CSV
-column keys). Both parse the same file formats but map matched lines to
-different output keys for different consumers, so only the line-parsing
-mechanics are factored out here — the region-name mappings stay with their
-respective callers.
+Used by preprocess.py (extract_aseg_stats/extract_aparc_stats), which maps
+matched lines to HCP-YA CSV column keys. Only the line-parsing mechanics live
+here; the region-name mapping stays with the caller.
 """
 from pathlib import Path
 from typing import Iterator, Tuple, Union

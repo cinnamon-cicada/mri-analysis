@@ -1,67 +1,10 @@
 import os
-import glob
 import pandas as pd
 from pathlib import Path
 from typing import Dict, List, Optional
 from utils import run_fastsurfer, human_readable_cols, aseg_mapping
 from freesurfer_stats import iter_measure_comments, iter_region_thickness_rows, iter_structure_rows
 from stats_math import zscore_to_percentile
-
-# ----------------------------------------------------------------------
-# 1. Preprocessing for ADHD Analysis - OUTSIDE DATASET
-# ----------------------------------------------------------------------
-def preprocess_adhd200(
-    input_dir: str = './outside_data/adhd200',
-    output_dir: str = './processed_data/adhd200_fastsurfer',
-    n_threads: int = 8,
-    freesurfer_license: Optional[str] = None
-) -> None:
-    """
-    Run FastSurfer (GPU-accelerated FreeSurfer alternative) via Docker, or
-    natively when FASTSURFER_MODE=native (see utils.run_fastsurfer).
-
-    Parameters
-    ----------
-    input_dir : str
-        Directory containing subject directories (each with anat/*.nii.gz)
-    output_dir : str
-        Directory to save processed outputs
-    n_threads : int
-        Number of CPU threads for non-GPU tasks
-    freesurfer_license : str, optional
-        Path to FreeSurfer license file (still required)
-    """
-    input_dir = os.path.abspath(input_dir)
-    output_dir = os.path.abspath(output_dir)
-    os.makedirs(output_dir, exist_ok=True)
-
-    # Check for FreeSurfer license
-    if freesurfer_license is None or not os.path.exists(freesurfer_license):
-        print("FreeSurfer license file not found.")
-        print("Get one free at: https://surfer.nmr.mgh.harvard.edu/registration.html")
-        return
-    freesurfer_license = os.path.abspath(freesurfer_license)
-
-    subjects = [d for d in os.listdir(input_dir) if os.path.isdir(os.path.join(input_dir, d))]
-    print(f"Found {len(subjects)} subjects to process in {input_dir}")
-
-    for subj in subjects:
-        anat_dir = os.path.join(input_dir, subj, "anat")
-        if not os.path.exists(anat_dir):
-            print(f"No anat directory found for {subj}, skipping...")
-            continue
-
-        t1_files = glob.glob(os.path.join(anat_dir, "sub-*_T1w.nii.gz"))
-        if not t1_files:
-            print(f"No T1w file found for {subj}, skipping...")
-            continue
-
-        print(f"Pre-processing subject: {subj}")
-
-        # Run FastSurfer (Docker or native, per FASTSURFER_MODE)
-        run_fastsurfer([subj], input_dir, output_dir, freesurfer_license, n_threads)
-
-
 
 # ----------------------------------------------------------------------
 # 2. Preprocessing function for HCP-YA - OUTSIDE DATASET

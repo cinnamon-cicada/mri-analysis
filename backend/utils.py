@@ -412,7 +412,7 @@ def prepare_for_fastsurfer(input_dir):
 
 
 def preprocess_lab_data(input_dir: str = '/lab_data',
-                        output_dir: str = '/processed_data/adhd_lab',
+                        output_dir: str = '/processed_data/lab',
                         freesurfer_license: Optional[str] = None):
     subjects = prepare_for_fastsurfer(input_dir=input_dir)
     output_dir = os.path.abspath(output_dir)

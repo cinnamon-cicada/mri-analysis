@@ -2,7 +2,6 @@
 Local pipeline test — exercises the full Python analysis logic without Docker or GCP.
 
 Layer 1: prepare_for_fastsurfer()       — NIfTI reorientation and compression
-Layer 2: get_volume() / get_thickness() — FreeSurfer stats file parsing (batch pipeline)
 Layer 3: compare_to_benchmark()         — full percentile computation against HCP-YA CSV
 Layer 4: Full end-to-end API pipeline   — upload → LocalQueue → process_job (Docker mocked)
                                            → compare_to_benchmark → results endpoint
@@ -108,7 +107,7 @@ def _populate_fastsurfer_output(base: Path, subject_id: str, scale: float = 1.0)
     Created files:
       <base>/<subject_id>/stats/aseg.stats
       <base>/<subject_id>/stats/{lh,rh}.aparc.stats
-      <base>/<subject_id>/stats/{lh,rh}.aparc.DKTatlas.mapped.stats   (get_thickness)
+      <base>/<subject_id>/stats/{lh,rh}.aparc.DKTatlas.mapped.stats
       <base>/<subject_id>/stats/{lh,rh}.aparc.DKTatlas.stats          (extract_aparc_stats)
     """
     stats_dir = base / subject_id / "stats"
@@ -253,57 +252,6 @@ class TestPreprocessing:
         mtime_before = gz.stat().st_mtime
         prepare_for_fastsurfer(str(nifti_input_dir))
         assert gz.stat().st_mtime == mtime_before
-
-
-# ─────────────────────────────────────────────────────────────────────────────
-# Layer 2: FreeSurfer stats parsing (batch pipeline path)
-# ─────────────────────────────────────────────────────────────────────────────
-
-class TestStatsParser:
-    def test_get_volume_regions_and_etiv(self, fastsurfer_output_dir):
-        from analysis import get_volume
-        r = get_volume(str(fastsurfer_output_dir / "sub-001"), analysis="adhd")
-        assert "error" not in r
-        assert r["eTIV"] is not None
-        assert abs(r["eTIV"] - ETIV) < 1.0
-        for key in ("caudate_left", "caudate_right", "putamen_left", "putamen_right",
-                    "accumbens_left", "accumbens_right",
-                    "cerebellum_cortex_left", "cerebellum_cortex_right"):
-            assert key in r["volumes"], f"Missing volume key: {key}"
-
-    def test_get_volume_adjusted_keys_present(self, fastsurfer_output_dir):
-        from analysis import get_volume
-        r = get_volume(str(fastsurfer_output_dir / "sub-001"), analysis="adhd")
-        assert "caudate_left_adjusted" in r["volumes"]
-
-    def test_get_volume_values_correct(self, fastsurfer_output_dir):
-        from analysis import get_volume
-        r = get_volume(str(fastsurfer_output_dir / "sub-001"), analysis="adhd")
-        assert abs(r["volumes"]["caudate_left"] - VOLUME_VALUES["Left-Caudate"]) < 1.0
-
-    def test_get_thickness_14_keys(self, fastsurfer_output_dir):
-        from analysis import get_thickness
-        r = get_thickness(str(fastsurfer_output_dir / "sub-001"), analysis="adhd")
-        assert "error" not in r
-        assert len(r["thickness"]) == 14, f"Got {len(r['thickness'])} thickness keys"
-
-    def test_get_thickness_values_correct(self, fastsurfer_output_dir):
-        from analysis import get_thickness
-        r = get_thickness(str(fastsurfer_output_dir / "sub-001"), analysis="adhd")
-        assert abs(r["thickness"]["lh_dlpfc_superiorfrontal"] - THICKNESS_VALUES["superiorfrontal"]) < 0.001
-
-    def test_missing_stats_returns_error_dict(self, tmp_path):
-        from analysis import get_volume, get_thickness
-        assert "error" in get_volume(str(tmp_path / "ghost"), analysis="adhd")
-        assert "error" in get_thickness(str(tmp_path / "ghost"), analysis="adhd")
-
-    def test_five_subjects_produce_distinct_volumes(self, fastsurfer_output_dir):
-        from analysis import get_volume
-        vals = [
-            get_volume(str(fastsurfer_output_dir / sid), analysis="adhd")["volumes"]["caudate_left"]
-            for sid in SUBJECTS
-        ]
-        assert len(set(round(v, 1) for v in vals)) == len(SUBJECTS)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
