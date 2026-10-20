@@ -8,9 +8,13 @@ import json
 
 # MAIN
 def main(choice):
-    # Pre-process data in general
-    script_dir = os.path.dirname(os.path.abspath(__file__))
-    license_path = os.path.join(script_dir, "license.txt")
+    # Data dirs (outside_data/, lab_data/, processed_data/, analysis/) and
+    # license.txt live at the repo root; resolve every relative path below from
+    # there so the pipeline works whether it's launched from the root or backend/.
+    repo_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    os.chdir(repo_root)
+    license_path = os.path.abspath(os.environ.get("FREESURFER_LICENSE", "license.txt"))
+    os.makedirs("./analysis", exist_ok=True)
 
     # Perform different analyses based on the input argument
     if not choice:
@@ -22,7 +26,8 @@ def main(choice):
             if analysis == "1":
                 # ADHD Analysis
                 # Run preprocessing if not already done
-                if not os.listdir("./processed_data/adhd200"):
+                if (not os.path.exists("./processed_data/adhd200") or
+                        not os.listdir("./processed_data/adhd200")):
                     preprocess_adhd200(
                         input_dir="./outside_data/adhd200",
                         output_dir="./processed_data/adhd200",
