@@ -39,6 +39,18 @@ function onFileSelected(file) {
   else hideError(uploadError);
 }
 
+// --- Uploads switch (UX only; /upload enforces it server-side) ---
+fetch('/api/config')
+  .then(res => (res.ok ? res.json() : null))
+  .then(cfg => {
+    if (cfg && cfg.uploads_enabled === false) {
+      dropZone.classList.add('hidden');
+      uploadBtn.classList.add('hidden');
+      document.getElementById('uploadsDisabledNotice').classList.remove('hidden');
+    }
+  })
+  .catch(() => {});
+
 // --- Upload ---
 uploadBtn.addEventListener('click', async () => {
   const file = fileInput.files[0];
@@ -55,7 +67,7 @@ uploadBtn.addEventListener('click', async () => {
     const res = await fetch('/upload', { method: 'POST', body: formData });
     const data = await res.json();
     if (!res.ok) {
-      if (res.status === 503 && data.error === 'capacity') {
+      if (res.status === 503 && (data.error === 'capacity' || data.error === 'uploads_disabled')) {
         throw new Error(data.message);
       }
       throw new Error(`Upload failed (${res.status})`);

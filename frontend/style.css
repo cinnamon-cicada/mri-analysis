@@ -83,6 +83,15 @@ h1 {
 .muted { color: var(--muted); font-size: 0.8rem; margin-top: 16px; }
 .error { color: var(--error); font-size: 0.85rem; margin-top: 12px; }
 .hidden { display: none !important; }
+.notice {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 16px;
+  color: var(--muted);
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+.notice a { color: var(--accent); }
 
 /* --- File drop zone --- */
 .file-drop {
