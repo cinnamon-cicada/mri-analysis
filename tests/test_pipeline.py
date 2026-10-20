@@ -16,10 +16,12 @@ the exact format FastSurfer produces, letting the parsing and analysis code run 
 import io
 import json
 import os
+import subprocess
 import sys
 import tempfile
 import threading
 import time
+import uuid
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
@@ -449,17 +451,24 @@ def docker_pipeline_client(tmp_path, monkeypatch):
     Full-pipeline TestClient — FastSurfer runs for real via Docker.
 
     Requires Docker socket access and license.txt at the repo root (or
-    FREESURFER_LICENSE env var), plus pydeface/FSL's `flirt` on PATH for the
-    real defacing step (see backend/deface.py). Output persists in
-    tests/fixtures/web_jobs/.
+    FREESURFER_LICENSE env var). Output persists in tests/fixtures/web_jobs/.
+
+    Defacing is stubbed out: real pydeface/flirt takes minutes on this scan,
+    which would eat the whole 30 s window before Docker ever started. Deface
+    ordering is covered by TestDefacing.
+
+    Every `docker run` the job launches is tagged with a per-test label so
+    teardown can kill the container; otherwise the TestClient exit would block
+    on the in-process LocalQueue task for the hours a real FastSurfer run takes.
     """
     monkeypatch.chdir(tmp_path)
 
-    import storage, queue_system, worker
+    import storage, queue_system, utils, worker, deface
     storage._backend = None
     queue_system._queue = None
 
     PIPELINE_OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+    monkeypatch.setattr(deface, "deface_file", lambda path: None)
     monkeypatch.setattr(worker, "FASTSURFER_OUTPUT_DIR", str(PIPELINE_OUTPUT_DIR))
     monkeypatch.setattr(
         worker,
@@ -467,9 +476,54 @@ def docker_pipeline_client(tmp_path, monkeypatch):
         str(REPO_ROOT / "license.txt"),
     )
 
+    label = f"mri-analysis-test={uuid.uuid4().hex}"
+    stopping = threading.Event()
+    real_run_subjects = utils._run_fastsurfer_subjects
+
+    def _labelled_run_subjects(subjects, input_dir, output_dir, build_cmd, *args, **kwargs):
+        def _build_labelled_cmd(subject_id, t1_file):
+            if stopping.is_set():
+                raise RuntimeError("test teardown in progress; not starting FastSurfer")
+            cmd = build_cmd(subject_id, t1_file)
+            if cmd[:2] == ["docker", "run"]:
+                cmd = cmd[:2] + ["--label", label] + cmd[2:]
+            return cmd
+        return real_run_subjects(subjects, input_dir, output_dir, _build_labelled_cmd,
+                                 *args, **kwargs)
+
+    monkeypatch.setattr(utils, "_run_fastsurfer_subjects", _labelled_run_subjects)
+
+    def _labelled_container_ids(running_only=False):
+        return subprocess.run(
+            ["docker", "ps", *([] if running_only else ["-a"]), "-q",
+             "--filter", f"label={label}"],
+            capture_output=True, text=True,
+        ).stdout.split()
+
+    def _kill_labelled_containers():
+        ids = _labelled_container_ids()
+        if ids:
+            subprocess.run(["docker", "rm", "-f", *ids], capture_output=True)
+
     from app import app
-    with TestClient(app, raise_server_exceptions=True) as client:
-        yield client
+    try:
+        with TestClient(app, raise_server_exceptions=True) as client:
+            client.running_containers = lambda: _labelled_container_ids(running_only=True)
+            try:
+                yield client
+            finally:
+                # Kill the container so the background job fails fast, then wait
+                # for the job to settle before TestClient's exit awaits its task.
+                # Repeat the kill: the container may not have started yet.
+                stopping.set()
+                deadline = time.time() + 60
+                while time.time() < deadline:
+                    _kill_labelled_containers()
+                    if storage.get_storage().count_active_jobs() == 0:
+                        break
+                    time.sleep(1.0)
+    finally:
+        _kill_labelled_containers()
 
     storage._backend = None
     queue_system._queue = None
@@ -513,10 +567,12 @@ class TestDockerSmoke:
             if status == "failed":
                 error = docker_pipeline_client.get(f"/status/{job_id}").json().get("error", "")
                 pytest.fail(f"Job failed within 30 s — Docker may not be accessible. Error: {error}")
-            time.sleep(1.0)
+            time.sleep(2.0)  # /status is rate-limited to 30/min
 
         final = docker_pipeline_client.get(f"/status/{job_id}").json().get("status")
         assert final == "processing", f"Expected 'processing' after 30 s, got '{final}'"
+        assert docker_pipeline_client.running_containers(), \
+            "Job is 'processing' but no FastSurfer container is running"
 
 
 @requires_scan
