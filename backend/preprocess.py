@@ -142,11 +142,16 @@ def extract_aparc_stats(subject_id: str, hemisphere: str, subjects_path: str = N
     if not subjects_path:
         print(f"Warning: No path provided for {subject_id}, skipping aparc.stats")
         return {}
-    stats_file = Path(subjects_path) / 'stats' / f'{hemisphere}.aparc.DKTatlas.stats'
-    thickness = {}
-    
+    # FastSurfer writes the DKT parcellation as *.aparc.DKTatlas.mapped.stats;
+    # fall back to the unmapped name for FreeSurfer-style outputs.
+    stats_dir = Path(subjects_path) / 'stats'
+    stats_file = stats_dir / f'{hemisphere}.aparc.DKTatlas.mapped.stats'
     if not stats_file.exists():
-        print(f"Warning: {hemisphere}.aparc.DKTatlas.stats not found for {subject_id}")
+        stats_file = stats_dir / f'{hemisphere}.aparc.DKTatlas.stats'
+    thickness = {}
+
+    if not stats_file.exists():
+        print(f"Warning: {hemisphere}.aparc.DKTatlas[.mapped].stats not found for {subject_id}")
         return thickness
     
     prefix = 'FS_L_' if hemisphere == 'lh' else 'FS_R_'
