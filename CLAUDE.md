@@ -33,7 +33,7 @@ This project has two independent modes that share the `backend/` Python modules:
 
 ### 1. Web App (FastAPI)
 
-`backend/app.py` exposes the job endpoints `POST /upload`, `GET /status/{job_id}`, `GET /results/{job_id}`, plus `GET /healthz`, `GET /api/firebase-config`, `GET /api/me`, and the population endpoints `GET /api/population/segments` and `GET /api/population/distribution/{segment}`. In local dev it also serves the plain-HTML pages in `frontend/` (`/`, `/data`, `/login`, `/self`, assets under `/static`); in production Firebase Hosting serves them. Both storage and queue are injected via environment variable — the same code runs locally and in production without modification.
+`backend/app.py` exposes the job endpoints `POST /upload`, `GET /status/{job_id}`, `GET /results/{job_id}`, plus `GET /healthz`, `GET /api/config` (client feature flags), `GET /api/firebase-config`, `GET /api/me`, and the population endpoints `GET /api/population/segments` and `GET /api/population/distribution/{segment}`. In local dev it also serves the plain-HTML pages in `frontend/` (`/`, `/data`, `/login`, `/self`, assets under `/static`); in production Firebase Hosting serves them. Both storage and queue are injected via environment variable — the same code runs locally and in production without modification.
 
 **Auth** (`backend/auth.py`): optional Firebase sign-in. The browser sends a Firebase ID token as `Authorization: Bearer`; `verify_bearer_token()` checks it with firebase-admin. Uploads stay anonymous-capable: a token on `POST /upload` tags the job with the user's `uid`. Anonymous jobs are protected only by their unguessable UUID; a `uid`-tagged job's status/results require that same user's token (403 otherwise).
 
@@ -82,6 +82,7 @@ This replaced an earlier Cloud-Tasks-based design: the worker was briefly a Clou
 | `FASTSURFER_OUTPUT_DIR` | Worker | Default: `./processed_data/web_jobs` |
 | `FASTSURFER_MODE` | Worker + batch pipeline | `native` runs `run_fastsurfer.sh` directly (Cloud Run Job image, or the macOS pkg); anything else/unset uses `docker run` |
 | `FASTSURFER_HOME` | Native mode | Default `/fastsurfer` (container). macOS pkg: `/Applications/FastSurfer2.6.0` — its `macos_setup_fastsurfer.sh` is sourced automatically |
+| `UPLOADS_ENABLED` | API | Soft-launch switch. Anything but `true` makes `POST /upload` return 503 `uploads_disabled` before storing anything, and `GET /api/config` tells the frontend to hide the upload UI. Unset defaults to off under `STORAGE_BACKEND=firebase`, on otherwise. Production currently sets `false` |
 | `HIPAA_BAA_CONFIRMED` | Firebase backend | Must be `true`; `backend/config.py` refuses to start against `STORAGE_BACKEND=firebase` otherwise. Only set this after the Google Cloud BAA (covering Firestore/Cloud Storage/Firebase Auth) has actually been executed in the console — the app can't verify that itself. |
 
 ## GCP Infrastructure
