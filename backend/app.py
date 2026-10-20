@@ -44,6 +44,19 @@ MAX_UPLOAD_BYTES = 200 * 1024 * 1024
 # policy on `jobs.expires_at` can enforce it without touching that query.
 JOB_RETENTION_DAYS = 90
 
+
+def _uploads_enabled() -> bool:
+    """Soft-launch switch for POST /upload (UPLOADS_ENABLED=true|false).
+
+    Fails closed: unset defaults to off under STORAGE_BACKEND=firebase (real
+    scans, real storage) and on for local dev; any value other than "true"
+    counts as off. Read per request so flipping the Cloud Run env var takes
+    effect on the next revision without a code change.
+    """
+    default = "false" if os.environ.get("STORAGE_BACKEND") == "firebase" else "true"
+    return os.environ.get("UPLOADS_ENABLED", default).strip().lower() == "true"
+
+
 FRONTEND_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "frontend")
 
 
@@ -131,6 +144,14 @@ async def healthz():
     return {"status": "ok"}
 
 
+@app.get("/api/config")
+async def client_config():
+    """Client-visible feature flags. The frontend hides the upload UI when
+    uploads_enabled is false; /upload enforces the same flag server-side, so
+    this is a UX hint, not a security boundary."""
+    return {"uploads_enabled": _uploads_enabled()}
+
+
 @app.get("/api/firebase-config")
 async def firebase_config():
     """Public Firebase web config for the client SDK, sourced from env so no
@@ -193,6 +214,14 @@ async def upload(
     file: UploadFile = File(...),
     authorization: str | None = Header(default=None),
 ):
+    # Checked before anything is read or stored: a disabled upload must never
+    # leave a (not-yet-defaced) scan in storage.
+    if not _uploads_enabled():
+        return JSONResponse(
+            {"error": "uploads_disabled", "message": "Uploads are temporarily unavailable. Please check back soon."},
+            status_code=503,
+        )
+
     storage = get_storage()
     if storage.count_active_jobs() >= 5:
         logger.warning("capacity_rejected", extra={"event": "capacity_rejected", "client_ip": get_remote_address(request)})

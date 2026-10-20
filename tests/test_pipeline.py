@@ -677,6 +677,47 @@ class TestConcurrencyControl:
         concurrency_client.gate.set()
 
 
+class TestUploadsSwitch:
+    """UPLOADS_ENABLED soft-launch switch: /upload refuses before storing
+    anything, /api/config mirrors it, and unset fails closed in production."""
+
+    @pytest.fixture
+    def client(self, tmp_path, monkeypatch):
+        monkeypatch.chdir(tmp_path)
+        import storage, queue_system
+        storage._backend = None
+        queue_system._queue = None
+        from app import app, limiter
+        limiter._storage.reset()
+        with TestClient(app, raise_server_exceptions=True) as c:
+            yield c
+        storage._backend = None
+        queue_system._queue = None
+
+    def test_disabled_upload_returns_503_and_stores_nothing(self, client, monkeypatch):
+        monkeypatch.setenv("UPLOADS_ENABLED", "false")
+        r = client.post("/upload", files={"file": ("scan.nii.gz", b"not-a-scan", "application/gzip")})
+        assert r.status_code == 503
+        assert r.json()["error"] == "uploads_disabled"
+        from storage import get_storage
+        assert get_storage().count_active_jobs() == 0
+
+    @pytest.mark.parametrize("value, expected", [("false", False), ("true", True), ("TRUE ", True), ("yes", False)])
+    def test_config_mirrors_flag(self, client, monkeypatch, value, expected):
+        monkeypatch.setenv("UPLOADS_ENABLED", value)
+        assert client.get("/api/config").json() == {"uploads_enabled": expected}
+
+    @pytest.mark.parametrize("backend, expected", [("firebase", False), (None, True)])
+    def test_unset_defaults_by_storage_backend(self, monkeypatch, backend, expected):
+        from app import _uploads_enabled
+        monkeypatch.delenv("UPLOADS_ENABLED", raising=False)
+        if backend:
+            monkeypatch.setenv("STORAGE_BACKEND", backend)
+        else:
+            monkeypatch.delenv("STORAGE_BACKEND", raising=False)
+        assert _uploads_enabled() is expected
+
+
 # ─────────────────────────────────────────────────────────────────────────────
 # Layer 5: Auth & user accounts (/login, /self, /api/me, job→user linkage)
 #
