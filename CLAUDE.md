@@ -33,7 +33,9 @@ This project has two independent modes that share the `backend/` Python modules:
 
 ### 1. Web App (FastAPI)
 
-`backend/app.py` exposes three endpoints: `POST /upload`, `GET /status/{job_id}`, `GET /results/{job_id}`. Both storage and queue are injected via environment variable — the same code runs locally and in production without modification.
+`backend/app.py` exposes the job endpoints `POST /upload`, `GET /status/{job_id}`, `GET /results/{job_id}`, plus `GET /healthz`, `GET /api/firebase-config`, `GET /api/me`, and the population endpoints `GET /api/population/segments` and `GET /api/population/distribution/{segment}`. In local dev it also serves the plain-HTML pages in `frontend/` (`/`, `/data`, `/login`, `/self`, assets under `/static`); in production Firebase Hosting serves them. Both storage and queue are injected via environment variable — the same code runs locally and in production without modification.
+
+**Auth** (`backend/auth.py`): optional Firebase sign-in. The browser sends a Firebase ID token as `Authorization: Bearer`; `verify_bearer_token()` checks it with firebase-admin. Uploads stay anonymous-capable: a token on `POST /upload` tags the job with the user's `uid`. Anonymous jobs are protected only by their unguessable UUID; a `uid`-tagged job's status/results require that same user's token (403 otherwise).
 
 **Storage abstraction** (`backend/storage.py`):
 - `local` (default): in-memory job metadata + local filesystem files. Not safe for multi-worker deployments.
@@ -45,21 +47,21 @@ This project has two independent modes that share the `backend/` Python modules:
 
 **Capacity limit**: `POST /upload` checks `storage.count_active_jobs()` (jobs with status `queued` or `processing`) before storing anything, and returns `503 {"error": "capacity", "message": "..."}` at 5 active jobs. Note this shares its threshold (5) with the per-IP rate limit below but is a completely different mechanism — one caps total server load across all clients, the other caps request rate from one IP.
 
-**Worker** (`backend/worker.py`): stages the uploaded file into `{subject_id}/anat/{subject_id}_T1w.nii.gz`, invokes FastSurfer via Docker (`deepmi/fastsurfer:latest`), then calls `analysis.compare_to_benchmark()`. Runs can take many hours per subject.
+**Worker** (`backend/worker.py`): stages the uploaded file into `{subject_id}/anat/{subject_id}_T1w.nii.gz`, defaces it (`backend/deface.py`, `pydeface`, which needs FSL) and overwrites the stored upload with the defaced copy before anything else touches it, then runs FastSurfer via `utils.run_fastsurfer()` and calls `analysis.compare_to_benchmark()`. Defacing failures are fatal — never fall back to processing the original. In production the worker image (`infra/Dockerfile.worker`, `FROM deepmi/fastsurfer` + FSL) sets `FASTSURFER_MODE=native`, so FastSurfer runs in-container, not via `docker run`. Locally the Docker smoke test fails without FSL installed.
 
 **Worker entrypoint** (`backend/worker_entrypoint.py`): plain script (no HTTP) run as a Cloud Run Job execution. Reads `JOB_ID`/`FILE_REF` from env vars supplied per-execution by the dispatcher, calls `process_job()`, and writes only the terminal `completed`/`failed` status — `processing` is set earlier by the dispatcher's claim transaction, not here.
 
 **Dispatcher** (`backend/dispatcher.py`): a 2nd-gen Cloud Function triggered on writes to the `jobs` Firestore collection (deployed with its own minimal `backend/requirements.txt`, separate from the root one). On every firing it ignores the event payload and re-derives live state: in a Firestore transaction, count `processing` docs, and if under 2, atomically claim the oldest `queued` doc and start a `mri-worker` Cloud Run Job execution via the Admin API. Self-driving — the worker's own status writes re-trigger it, so no polling/scheduler is needed. Needs a composite index on `jobs(status ASC, created_at ASC)` (`infra/firestore.indexes.json`) since its query filters on `status` and orders by a different field.
 
-This replaced an earlier Cloud-Tasks-based design: the worker was briefly a Cloud Run Service invoked over HTTP, but Cloud Run Services have a hard 60-minute request timeout — incompatible with FastSurfer runs that take many hours. Cloud Tasks' concurrency dispatch limit also only gates outstanding HTTP calls, not actual job duration, so it couldn't enforce "2 concurrent" once the worker stopped being an HTTP endpoint.
+This replaced an earlier Cloud-Tasks-based design: the worker was briefly a Cloud Run Service invoked over HTTP, but Cloud Run Services have a hard 60-minute request timeout — too tight for a full FastSurfer run (~1 h natively on an M5, unmeasured on Cloud Run's x86 CPUs). Cloud Tasks' concurrency dispatch limit also only gates outstanding HTTP calls, not actual job duration, so it couldn't enforce "2 concurrent" once the worker stopped being an HTTP endpoint.
 
-**Rate limiting**: `/upload` is limited to 5 requests/minute per IP via `slowapi`.
+**Rate limiting** (per IP, via `slowapi`): `/upload` 5/minute, `/status/{job_id}` 30/minute, `/results/{job_id}` 20/minute.
 
 ### 2. Batch Analysis Pipeline
 
 `backend/main.py` orchestrates preprocessing and analysis for research datasets. Inputs must be organized as `{input_dir}/{subject_id}/anat/{subject_id}_T1w.nii.gz`. FastSurfer outputs go to `./processed_data/`, results to `./analysis/`.
 
-`backend/preprocess.py` handles HCP-YA-style stats extraction and the outlier analysis. `backend/utils.py` handles generic FastSurfer preparation (RAS reorientation, compression) and the Docker invocation shared with the web worker.
+`backend/preprocess.py` handles HCP-YA-style stats extraction and the outlier analysis. `backend/utils.py` handles generic FastSurfer preparation (RAS reorientation, compression) and the FastSurfer invocation shared with the web worker (`run_fastsurfer()` dispatches to native or Docker per `FASTSURFER_MODE`; default 8 threads, matching the worker Job's 8 vCPUs).
 
 ### Benchmark stats
 
@@ -76,7 +78,7 @@ This replaced an earlier Cloud-Tasks-based design: the worker was briefly a Clou
 | `GCP_PROJECT` | Dispatcher | `the-brain-benchmark-project` |
 | `GCP_WORKER_JOB_LOCATION` | Dispatcher | e.g. `us-central1`; defaults to `us-central1` if unset |
 | `GCP_WORKER_JOB_NAME` | Dispatcher | Cloud Run Job name; defaults to `mri-worker` if unset |
-| `FREESURFER_LICENSE` | Worker | Default: `./license.txt` (gitignored) |
+| `FREESURFER_LICENSE` | Worker + batch pipeline | Default: `./license.txt` (gitignored); `main.py` resolves it from the repo root |
 | `FASTSURFER_OUTPUT_DIR` | Worker | Default: `./processed_data/web_jobs` |
 | `FASTSURFER_MODE` | Worker + batch pipeline | `native` runs `run_fastsurfer.sh` directly (Cloud Run Job image, or the macOS pkg); anything else/unset uses `docker run` |
 | `FASTSURFER_HOME` | Native mode | Default `/fastsurfer` (container). macOS pkg: `/Applications/FastSurfer2.6.0` — its `macos_setup_fastsurfer.sh` is sourced automatically |
@@ -115,9 +117,9 @@ gcloud firestore fields ttls update expires_at --collection-group=results --data
 
 ## FastSurfer / Docker
 
-**Apple silicon**: prefer the native FastSurfer >=2.6 macOS pkg (arm64 FreeSurfer 8.2, segmentation on MPS) via `FASTSURFER_MODE=native`. Measured on an M5 (16 GB), one ADHD-200 subject (NYU sub-0010001), `--threads 4`: ~7 min segmentation + ~47 min surfaces = 56 min total. The amd64 Docker image (pinned with `--platform linux/amd64`) still works on arm64 but runs under emulation and is far slower — likely the source of earlier "many hours per subject" estimates. Native timing on Cloud Run's x86 CPUs hasn't been measured.
+**Apple silicon**: prefer the native FastSurfer >=2.6 macOS pkg (arm64 FreeSurfer 8.2, segmentation on MPS) via `FASTSURFER_MODE=native`. Measured on an M5 (16 GB), one public T1w (NYU sub-0010001), `--threads 4` (the default is now 8): ~7 min segmentation + ~47 min surfaces = 56 min total. The amd64 Docker image (pinned with `--platform linux/amd64`) still works on arm64 but runs under emulation and is far slower — likely the source of earlier "many hours per subject" estimates. Native timing on Cloud Run's x86 CPUs hasn't been measured.
 
-The Docker image `deepmi/fastsurfer:latest` is pulled at first run. GPU is disabled in `utils.run_fastsurfer_docker()` (flag commented out — re-enable with `--gpus all` if a GPU is available). Processing timeout is 24 hours per subject (`subprocess.run(..., timeout=86400)`), matching the Cloud Run Job's `timeoutSeconds`. This was previously 1 hour — a leftover from before FastSurfer runs were confirmed to take many hours per subject, and one that would have silently killed every real production run regardless of the Job's own timeout.
+The Docker image `deepmi/fastsurfer:latest` is pulled at first run. GPU is disabled in `utils.run_fastsurfer_docker()` (flag commented out — re-enable with `--gpus all` if a GPU is available). Processing timeout is 24 hours per subject (`subprocess.run(..., timeout=86400)`), matching the Cloud Run Job's `timeoutSeconds`. That's a generous ceiling, not an expected duration: native runs take ~1 h (see above). It was previously 1 hour, which sits right at a full run's length and would have killed real production runs regardless of the Job's own timeout.
 
 FreeSurfer license (`license.txt`) must be obtained free from https://surfer.nmr.mgh.harvard.edu/registration.html and placed at the repo root or pointed to via `FREESURFER_LICENSE`.
 
