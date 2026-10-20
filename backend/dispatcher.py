@@ -18,7 +18,7 @@ then picks up the next queued job. No polling or Cloud Scheduler needed.
 Deploy note: the Python Functions Framework buildpack looks for main.py
 by default; since this module is named dispatcher.py, the deploy command
 needs --set-build-env-vars=GOOGLE_FUNCTION_SOURCE=dispatcher.py (see
-Phase 4 in the handoff).
+bin/deploy.sh).
 
 Requires a composite Firestore index on jobs(status ASC, created_at ASC)
 — see infra/firestore.indexes.json — since the queued-job query filters
