@@ -151,7 +151,7 @@ source env/bin/activate
 
 # Install dependencies
 pip install --upgrade pip
-pip install -r requirements.txt
+pip install -r requirements.txt -r requirements-dev.txt
 
 # Make run script executable
 chmod +x ./bin/run_app.sh
