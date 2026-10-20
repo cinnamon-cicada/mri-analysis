@@ -21,7 +21,9 @@ pip install -r requirements.txt
 # Run the web app locally (local storage + in-process queue)
 ./bin/run_app.sh
 
-# Run batch analysis pipeline (from repo root, with venv active)
+# Run batch analysis pipeline (with venv active; paths resolve from repo root
+# regardless of cwd). On Apple silicon, first select the native FastSurfer pkg:
+#   export FASTSURFER_MODE=native FASTSURFER_HOME=/Applications/FastSurfer2.6.0
 cd backend && python main.py 1        # ADHD-200 comparison
 cd backend && python main.py 2        # Outlier/uniqueness vs HCP-YA
 cd backend && python main.py 1 2      # Run both in sequence
@@ -78,6 +80,8 @@ This replaced an earlier Cloud-Tasks-based design: the worker was briefly a Clou
 | `GCP_WORKER_JOB_NAME` | Dispatcher | Cloud Run Job name; defaults to `mri-worker` if unset |
 | `FREESURFER_LICENSE` | Worker | Default: `./license.txt` (gitignored) |
 | `FASTSURFER_OUTPUT_DIR` | Worker | Default: `./processed_data/web_jobs` |
+| `FASTSURFER_MODE` | Worker + batch pipeline | `native` runs `run_fastsurfer.sh` directly (Cloud Run Job image, or the macOS pkg); anything else/unset uses `docker run` |
+| `FASTSURFER_HOME` | Native mode | Default `/fastsurfer` (container). macOS pkg: `/Applications/FastSurfer2.6.0` — its `macos_setup_fastsurfer.sh` is sourced automatically |
 | `HIPAA_BAA_CONFIRMED` | Firebase backend | Must be `true`; `backend/config.py` refuses to start against `STORAGE_BACKEND=firebase` otherwise. Only set this after the Google Cloud BAA (covering Firestore/Cloud Storage/Firebase Auth) has actually been executed in the console — the app can't verify that itself. |
 
 ## GCP Infrastructure
@@ -112,6 +116,8 @@ gcloud firestore fields ttls update expires_at --collection-group=results --data
 ```
 
 ## FastSurfer / Docker
+
+**Apple silicon**: prefer the native FastSurfer >=2.6 macOS pkg (arm64 FreeSurfer 8.2, segmentation on MPS) via `FASTSURFER_MODE=native`. Measured on an M5 (16 GB), one ADHD-200 subject (NYU sub-0010001), `--threads 4`: ~7 min segmentation + ~47 min surfaces = 56 min total. The amd64 Docker image (pinned with `--platform linux/amd64`) still works on arm64 but runs under emulation and is far slower — likely the source of earlier "many hours per subject" estimates. Native timing on Cloud Run's x86 CPUs hasn't been measured.
 
 The Docker image `deepmi/fastsurfer:latest` is pulled at first run. GPU is disabled in `utils.run_fastsurfer_docker()` (flag commented out — re-enable with `--gpus all` if a GPU is available). Processing timeout is 24 hours per subject (`subprocess.run(..., timeout=86400)`), matching the Cloud Run Job's `timeoutSeconds`. This was previously 1 hour — a leftover from before FastSurfer runs were confirmed to take many hours per subject, and one that would have silently killed every real production run regardless of the Job's own timeout.
 
